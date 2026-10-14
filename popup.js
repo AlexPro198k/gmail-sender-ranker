@@ -223,7 +223,12 @@ scanApiButton.addEventListener("click", async () => {
 });
 
 downloadButton.addEventListener("click", () => {
-  const escapeCsv = (value) => `"${String(value).replaceAll('"', '""')}"`;
+  // A leading apostrophe stops spreadsheets from running text such as "=1+1" as a formula.
+  const escapeCsv = (value) => {
+    const text = String(value);
+    const safe = /^[=+\-@\t\r]/.test(text) && !/^-?\d+(\.\d+)?$/.test(text) ? `'${text}` : text;
+    return `"${safe.replaceAll('"', '""')}"`;
+  };
   const rows = [["Rank", "Sender label", "Email", "Conversations"]];
   senders.forEach((sender, index) => rows.push([index + 1, sender.name, sender.email ?? "", sender.count]));
   const csv = rows.map((row) => row.map(escapeCsv).join(",")).join("\r\n");
