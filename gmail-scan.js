@@ -1,10 +1,24 @@
 const API = "https://gmail.googleapis.com/gmail/v1/users/me";
 const CONCURRENCY = 8;
+// Gmail allows 250 quota units per second per user and messages.get costs 5, so stay near 35 requests/s.
+const MIN_INTERVAL_MS = 28;
+const MAX_RETRIES = 8;
+
+let nextSlot = 0;
+async function throttle() {
+  const now = Date.now();
+  const wait = Math.max(0, nextSlot - now);
+  nextSlot = Math.max(now, nextSlot) + MIN_INTERVAL_MS;
+  if (wait) await new Promise((r) => setTimeout(r, wait));
+}
 
 async function call(token, url, fetchImpl, attempt = 0) {
+  await throttle();
   const res = await fetchImpl(url, { headers: { Authorization: `Bearer ${token}` } });
-  if ((res.status === 429 || res.status === 403 || res.status >= 500) && attempt < 5) {
-    await new Promise((r) => setTimeout(r, 500 * 2 ** attempt));
+  if ((res.status === 429 || res.status === 403 || res.status >= 500) && attempt < MAX_RETRIES) {
+    const retryAfter = Number(res.headers?.get?.("retry-after")) * 1000;
+    const backoff = Math.min(30_000, 500 * 2 ** attempt) + Math.random() * 250;
+    await new Promise((r) => setTimeout(r, retryAfter > backoff ? retryAfter : backoff));
     return call(token, url, fetchImpl, attempt + 1);
   }
   const text = await res.text();
