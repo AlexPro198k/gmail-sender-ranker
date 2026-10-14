@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="theme-color" content="#16181d">
+  <link rel="manifest" href="manifest.webmanifest">
+  <title>Sender Ranker</title>
+  <link rel="stylesheet" href="app.css">
+</head>
+<body>
+  <header>
+    <h1>Sender Ranker</h1>
+    <button id="sign-out" hidden>Sign out</button>
+  </header>
+  <main>
+    <section id="signin">
+      <p>Sign in with Google to rank your Inbox senders and manage them.</p>
+      <button id="sign-in" class="primary">Sign in with Google</button>
+    </section>
+    <section id="app" hidden>
+      <div class="toolbar">
+        <button id="scan" class="primary">Scan Inbox</button>
+        <button id="empty-trash" class="danger">Empty Trash</button>
+        <button id="empty-spam" class="danger">Delete Spam</button>
+      </div>
+      <p id="status" role="status"></p>
+      <input id="filter" type="search" placeholder="Filter senders" hidden>
+      <ul id="list"></ul>
+    </section>
+  </main>
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <script type="module" src="app.js"></script>
+</body>
+</html>

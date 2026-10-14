@@ -1,0 +1,30 @@
+{
+  "manifest_version": 3,
+  "name": "Gmail Sender Ranker",
+  "version": "2.1.0",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAniwaR/raTbkiF1xnxATSsTbbMjoBZwuaf7WWUJv/Wf7KneSxxoOIDKo9cGoE38zVQsOTsiDzQ2RCdAJ//Z1KLS4pcV1MBLvGCoYsEv3URJvQ+ntoUjWfCTTD+Du1VsTkSy2vq0WiIRq5+Ry0uy6/nrJ4qRr04sc5LA/IfWg8zeLj1E/A3BPP2wsMOe/oaiDZ7fIGlbVPmxt1bgif9xgncfeMkfzhiolXtm625onkNbpvH3EoyelCi+7SAbPK0sJ/meTOTOrXmUAqiSVzt+H2xUnksMVAn0Z5fLxvKC/xGQsMghmKTxvnLhjKoMEg/HQt7CBx61lUABUiDfyQOmNCNQIDAQAB",
+  "description": "Rank Gmail Inbox senders and create Delete/Block rules for them.",
+  "permissions": ["identity", "storage"],
+  "host_permissions": ["https://mail.google.com/*", "https://gmail.googleapis.com/*"],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "action": {
+    "default_title": "Rank Gmail senders",
+    "default_popup": "popup.html"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://mail.google.com/*"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["popup.html"],
+      "matches": ["https://mail.google.com/*"]
+    }
+  ]
+}

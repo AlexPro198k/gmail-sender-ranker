@@ -1,0 +1,388 @@
+:root {
+  --bg: #1c1d21;
+  --glass: rgba(255, 255, 255, 0.06);
+  --glass-strong: rgba(255, 255, 255, 0.10);
+  --line: rgba(255, 255, 255, 0.12);
+  --text: #e8e9ed;
+  --muted: #9a9ca5;
+  --accent: #8ab4f8;
+  --danger: #ff8b84;
+  --ok: #7fd99a;
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  width: 640px;
+  min-height: 180px;
+  max-height: 640px;
+  margin: 0;
+  color: var(--text);
+  background:
+    radial-gradient(circle at 15% 0%, rgba(138, 180, 248, 0.14), transparent 45%),
+    radial-gradient(circle at 100% 100%, rgba(255, 255, 255, 0.06), transparent 40%),
+    var(--bg);
+  font: 14px/1.45 "Segoe UI", system-ui, -apple-system, sans-serif;
+}
+
+main {
+  padding: 18px;
+}
+
+h1 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.titlebar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 2px;
+}
+
+.window-controls {
+  display: flex;
+  gap: 6px;
+}
+
+.window-controls button {
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--glass);
+  color: var(--text);
+  cursor: pointer;
+  font: 15px/1 "Segoe UI", sans-serif;
+}
+
+.window-controls button:hover {
+  background: var(--glass-strong);
+}
+
+body.minimized {
+  width: 300px;
+  min-height: 0;
+}
+
+body.minimized #body {
+  display: none;
+}
+
+body.minimized .titlebar {
+  margin-bottom: 0;
+}
+
+body.in-frame {
+  width: auto;
+  max-height: none;
+  height: 100vh;
+  overflow: auto;
+}
+
+body.in-frame #minimize {
+  display: none;
+}
+
+body.in-frame main {
+  max-width: 1000px;
+  margin: 0 auto;
+}
+
+body.in-frame .table-container {
+  max-height: calc(100vh - 260px);
+}
+
+.description,
+.note {
+  color: var(--muted);
+}
+
+.description {
+  margin: 0 0 14px;
+}
+
+.toolbar {
+  display: flex;
+  gap: 8px;
+}
+
+button {
+  transition: background 0.15s, border-color 0.15s, opacity 0.15s, transform 0.05s;
+}
+
+button:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+#scan,
+#scan-api,
+#download,
+#sign-in {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--glass);
+  color: var(--text);
+  cursor: pointer;
+  font: inherit;
+  font-weight: 500;
+  padding: 8px 14px;
+  backdrop-filter: blur(8px);
+}
+
+#scan,
+#sign-in {
+  background: rgba(138, 180, 248, 0.2);
+  border-color: rgba(138, 180, 248, 0.45);
+  color: #cfe0ff;
+}
+
+#scan:hover:not(:disabled),
+#sign-in:hover:not(:disabled) {
+  background: rgba(138, 180, 248, 0.3);
+}
+
+#scan-api:hover:not(:disabled),
+#download:hover:not(:disabled) {
+  background: var(--glass-strong);
+}
+
+#scan:disabled,
+#scan-api:disabled {
+  cursor: wait;
+  opacity: 0.55;
+}
+
+#status {
+  min-height: 20px;
+  margin: 12px 0;
+  color: var(--muted);
+}
+
+#status.error {
+  color: var(--danger);
+}
+
+#summary {
+  margin: 10px 0;
+  color: var(--text);
+}
+
+.controls {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+#filter {
+  min-width: 0;
+  flex: 1;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--glass);
+  color: var(--text);
+  padding: 8px 12px;
+  font: inherit;
+  outline: none;
+}
+
+#filter::placeholder {
+  color: var(--muted);
+}
+
+#filter:focus {
+  border-color: rgba(138, 180, 248, 0.6);
+}
+
+.table-container {
+  max-height: 340px;
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--glass);
+  backdrop-filter: blur(10px);
+}
+
+.table-container::-webkit-scrollbar {
+  width: 8px;
+}
+
+.table-container::-webkit-scrollbar-thumb {
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.18);
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+}
+
+th,
+td {
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--line);
+}
+
+tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+tbody tr:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+th {
+  position: sticky;
+  top: 0;
+  background: rgba(40, 41, 46, 0.92);
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+th:first-child,
+td:first-child {
+  width: 36px;
+  color: var(--muted);
+}
+
+th:nth-child(3),
+td:nth-child(3) {
+  width: 60px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+th:last-child,
+td:last-child {
+  width: 215px;
+}
+
+.email {
+  display: block;
+  color: var(--muted);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.actions {
+  display: flex;
+  gap: 4px;
+}
+
+.actions button {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--glass);
+  color: var(--text);
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  padding: 4px 8px;
+}
+
+.actions button:hover:not(:disabled) {
+  background: var(--glass-strong);
+}
+
+.actions .delete,
+.actions .trash {
+  color: var(--danger);
+}
+
+.actions .trash:hover:not(:disabled),
+.actions .delete:hover:not(:disabled) {
+  background: rgba(255, 139, 132, 0.14);
+  border-color: rgba(255, 139, 132, 0.4);
+}
+
+.actions button:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+
+.row-result {
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--ok);
+}
+
+.row-result.error {
+  color: var(--danger);
+}
+
+.note {
+  margin: 12px 0 0;
+  font-size: 12px;
+}
+
+#signin-hint {
+  margin: 8px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+#sign-in:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+#setup {
+  margin: 8px 0;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--glass);
+}
+
+#setup h2 {
+  margin: 0 0 4px;
+  font-size: 15px;
+}
+
+#setup ol {
+  margin: 0;
+  padding-left: 18px;
+}
+
+.copy-row {
+  display: flex;
+  gap: 6px;
+  margin: 4px 0 8px;
+}
+
+.copy-row code,
+.copy-row input {
+  min-width: 0;
+  flex: 1;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--glass);
+  color: var(--text);
+  padding: 5px 8px;
+  font: 12px monospace;
+  overflow-wrap: anywhere;
+}
+
+.copy-row button {
+  border: 0;
+  border-radius: 8px;
+  background: rgba(138, 180, 248, 0.25);
+  color: #cfe0ff;
+  cursor: pointer;
+  font: inherit;
+  padding: 5px 10px;
+}
+
+.maintenance { margin-bottom: 8px; }
+.maintenance button.danger { color: #ffb4b4; }
+body.minimized .maintenance { display: none; }

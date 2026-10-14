@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Gmail Sender Ranker</title>
+    <link rel="stylesheet" href="popup.css">
+  </head>
+  <body>
+    <main>
+      <header class="titlebar">
+        <h1>Gmail Sender Ranker</h1>
+        <div class="window-controls">
+          <button id="minimize" type="button" title="Minimize" aria-label="Minimize" aria-pressed="false">&#8211;</button>
+          <button id="maximize" type="button" title="Maximize (open in a full tab)" aria-label="Maximize">&#9633;</button>
+        </div>
+      </header>
+      <div class="toolbar maintenance">
+        <button id="empty-trash" type="button" class="danger">Empty Trash</button>
+        <button id="empty-spam" type="button" class="danger">Delete Spam</button>
+      </div>
+      <div id="body">
+      <p class="description">Rank sender labels by the number of Inbox conversations they appear in.</p>
+      <div class="toolbar">
+        <button id="scan" type="button">Scan Inbox</button>
+        <button id="scan-api" type="button">Scan via API</button>
+      </div>
+      <p id="status" role="status" aria-live="polite">Open Gmail to scan your Inbox.</p>
+      <section id="setup" hidden>
+        <button id="sign-in" type="button">Sign in with Google</button>
+        <p id="signin-hint">Allow access to your Gmail so the extension can scan your Inbox and create sender rules.</p>
+      </section>
+      <section id="results" hidden>
+        <div id="summary"></div>
+        <div class="controls">
+          <input id="filter" type="search" placeholder="Filter senders" aria-label="Filter senders">
+          <button id="download" type="button">Download CSV</button>
+        </div>
+        <div class="table-container">
+          <table>
+            <thead>
+              <tr><th scope="col">#</th><th scope="col">Sender label</th><th scope="col">Conversations</th><th scope="col">Rules</th></tr>
+            </thead>
+            <tbody id="sender-list"></tbody>
+          </table>
+        </div>
+      </section>
+      <p class="note">Counts Gmail’s displayed sender labels per conversation, not individual messages in a thread.</p>
+      </div>
+    </main>
+    <script src="popup.js"></script>
+  </body>
+</html>

@@ -1,0 +1,9 @@
+{
+  "name": "Gmail Sender Ranker",
+  "short_name": "Sender Ranker",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#16181d",
+  "theme_color": "#16181d"
+}
