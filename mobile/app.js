@@ -1,6 +1,8 @@
 import { CLIENT_ID } from "../config.js";
-import { applyRule, emptyFolder, trashInboxOlderThan } from "../gmail-rules.js?v=5";
-import { scanInbox, listSubjects } from "../gmail-scan.js?v=5";
+import { applyRule, emptyFolder, trashInboxOlderThan } from "../gmail-rules.js?v=6";
+import { scanInbox, listSubjects } from "../gmail-scan.js?v=6";
+import * as msMail from "../ms-mail.js?v=6";
+import { cachedMsToken, finishMsSignIn, msConfigured, msSignOut, startMsSignIn } from "../ms-auth.js?v=6";
 
 const SCOPE = "https://mail.google.com/ https://www.googleapis.com/auth/gmail.settings.basic";
 const $ = (selector) => document.querySelector(selector);
@@ -10,6 +12,9 @@ let token = null;
 let tokenExpires = 0;
 let tokenClient = null;
 let senders = [];
+let provider = localStorage.getItem("provider") === "microsoft" ? "microsoft" : "google";
+const googleApi = { scanInbox, listSubjects, applyRule, emptyFolder, trashInboxOlderThan };
+const api = () => (provider === "microsoft" ? msMail : googleApi);
 
 function setStatus(message, isError = false) {
   statusEl.textContent = message;
@@ -35,6 +40,22 @@ function getToken() {
 
 // Retries once with a fresh token if Google rejects the cached one.
 async function withToken(operation) {
+  if (provider === "microsoft") {
+    const cached = cachedMsToken();
+    if (!cached) {
+      await startMsSignIn();
+      throw new Error("Redirecting to Microsoft sign-in...");
+    }
+    try {
+      return await operation(cached);
+    } catch (error) {
+      if (error.status === 401) {
+        msSignOut();
+        await startMsSignIn();
+      }
+      throw error;
+    }
+  }
   try {
     return await operation(await getToken());
   } catch (error) {
@@ -78,7 +99,7 @@ async function showPreview(sender) {
   backdrop.addEventListener("click", (event) => { if (event.target === backdrop) dismiss(); });
 
   try {
-    const { subjects } = await withToken((t) => listSubjects(t, sender.email));
+    const { subjects } = await withToken((t) => api().listSubjects(t, sender.email));
     if (!subjects.length) { body.textContent = "No Inbox emails found for this sender."; return; }
     const list = document.createElement("ol");
     for (const item of subjects) {
@@ -207,7 +228,7 @@ async function run(action, sender, buttons, result, item) {
   result.className = "result";
   result.textContent = "Working...";
   try {
-    const r = await withToken((t) => applyRule(t, action, sender.email, fetch, { folderName }));
+    const r = await withToken((t) => api().applyRule(t, action, sender.email, fetch, { folderName }));
     const moved = r.moved ?? r.trashed;
     result.textContent = `${moved.toLocaleString()} emails moved` + (action === "trash" ? "." : r.filterCreated ? "; rule created." : "; rule already existed.");
     senders = senders.filter((s) => s !== sender);
@@ -225,7 +246,7 @@ async function scan() {
   setStatus("Scanning...");
   try {
     const { senders: found, messagesScanned } = await withToken((t) =>
-      scanInbox(t, (done, total) => setStatus(`Scanning ${done.toLocaleString()} of ${total.toLocaleString()}...`))
+      api().scanInbox(t, (done, total) => setStatus(`Scanning ${done.toLocaleString()} of ${total.toLocaleString()}...`))
     );
     senders = found;
     $("#filter").hidden = false;
@@ -244,7 +265,7 @@ function wireEmpty(id, folder, label) {
     event.target.disabled = true;
     setStatus(`Emptying ${label}...`);
     try {
-      const r = await withToken((t) => emptyFolder(t, folder));
+      const r = await withToken((t) => api().emptyFolder(t, folder));
       setStatus(`${r.deleted.toLocaleString()} emails permanently deleted from ${label}.`);
     } catch (error) {
       setStatus(error.message, true);
@@ -256,6 +277,8 @@ function wireEmpty(id, folder, label) {
 
 $("#sign-in").addEventListener("click", async () => {
   try {
+    provider = "google";
+    localStorage.setItem("provider", provider);
     await getToken();
     showApp(true);
     setStatus("Tap Scan Inbox to begin.");
@@ -264,18 +287,63 @@ $("#sign-in").addEventListener("click", async () => {
   }
 });
 $("#sign-out").addEventListener("click", () => {
-  if (token) google.accounts.oauth2.revoke(token);
+  if (provider === "microsoft") msSignOut();
+  else if (token) google.accounts.oauth2.revoke(token);
   token = null;
   senders = [];
   localStorage.removeItem("signedIn");
   $("#list").replaceChildren();
+  $("#sign-in-ms").hidden = !msConfigured();
+$("#sign-in-ms").addEventListener("click", async () => {
+  try {
+    localStorage.setItem("provider", "microsoft");
+    await startMsSignIn();
+  } catch (error) {
+    alert(error.message);
+  }
+});
+
+(async () => {
   showApp(false);
+  try {
+    const returned = await finishMsSignIn();
+    if (returned || (provider === "microsoft" && cachedMsToken())) {
+      provider = "microsoft";
+      showApp(true);
+      setStatus("Signed in with Microsoft. Tap Scan Inbox to begin.");
+    }
+  } catch (error) {
+    setStatus(error.message, true);
+  }
+})();
 });
 $("#scan").addEventListener("click", scan);
 $("#filter").addEventListener("input", render);
 wireEmpty("#empty-trash", "trash", "Trash");
 wireEmpty("#empty-spam", "spam", "Spam");
 $("#delete-inbox").addEventListener("click", () =>
-  showDeleteInbox((months) => withToken((t) => trashInboxOlderThan(t, months)), setStatus)
+  showDeleteInbox((months) => withToken((t) => api().trashInboxOlderThan(t, months)), setStatus)
 );
-showApp(false);
+$("#sign-in-ms").hidden = !msConfigured();
+$("#sign-in-ms").addEventListener("click", async () => {
+  try {
+    localStorage.setItem("provider", "microsoft");
+    await startMsSignIn();
+  } catch (error) {
+    alert(error.message);
+  }
+});
+
+(async () => {
+  showApp(false);
+  try {
+    const returned = await finishMsSignIn();
+    if (returned || (provider === "microsoft" && cachedMsToken())) {
+      provider = "microsoft";
+      showApp(true);
+      setStatus("Signed in with Microsoft. Tap Scan Inbox to begin.");
+    }
+  } catch (error) {
+    setStatus(error.message, true);
+  }
+})();
