@@ -135,7 +135,15 @@ function renderSenders() {
       email.textContent = sender.email;
       nameCell.append(email);
     }
-    countCell.textContent = String(sender.count);
+    const countButton = document.createElement("button");
+    countButton.type = "button";
+    countButton.className = "count-btn";
+    countButton.textContent = `${sender.count} \uD83D\uDC41`;
+    countButton.title = sender.email ? "Preview email subjects" : "Unavailable: this row has no single email address.";
+    countButton.setAttribute("aria-label", `Preview subjects for ${sender.name}`);
+    countButton.disabled = !sender.email;
+    countButton.addEventListener("click", () => showPreview(sender));
+    countCell.append(countButton);
 
     const actions = document.createElement("div");
     actions.className = "actions";
