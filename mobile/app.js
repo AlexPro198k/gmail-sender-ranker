@@ -1,6 +1,6 @@
 import { CLIENT_ID } from "../config.js";
 import { applyRule, emptyFolder } from "../gmail-rules.js";
-import { scanInbox, listSubjects } from "../gmail-scan.js";
+import { scanInbox, listSubjects } from "../gmail-scan.js?v=3";
 
 const SCOPE = "https://mail.google.com/ https://www.googleapis.com/auth/gmail.settings.basic";
 const $ = (selector) => document.querySelector(selector);
