@@ -84,3 +84,29 @@ export async function scanInbox(token, onProgress = () => {}, fetchImpl = fetch)
   const senders = [...bySender.values()].sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
   return { senders, messagesScanned: ids.length };
 }
+
+// Lists subjects of Inbox messages from one sender (metadata only), newest first.
+export async function listSubjects(token, email, limit = 100, fetchImpl = fetch) {
+  const params = new URLSearchParams({ labelIds: "INBOX", maxResults: String(limit), q: `from:${email}` });
+  const list = await call(token, `${API}/messages?${params}`, fetchImpl);
+  const ids = (list.messages || []).map((m) => m.id);
+  const subjects = new Array(ids.length);
+  let next = 0;
+  async function worker() {
+    while (next < ids.length) {
+      const i = next++;
+      const p = new URLSearchParams({ format: "metadata" });
+      p.append("metadataHeaders", "Subject");
+      p.append("metadataHeaders", "Date");
+      try {
+        const data = await call(token, `${API}/messages/${ids[i]}?${p}`, fetchImpl);
+        const get = (n) => data.payload?.headers?.find((h) => h.name.toLowerCase() === n)?.value || "";
+        subjects[i] = { subject: get("subject") || "(no subject)", date: get("date") };
+      } catch (error) {
+        if (error.status !== 404) throw error;
+      }
+    }
+  }
+  await Promise.all(Array.from({ length: CONCURRENCY }, worker));
+  return { subjects: subjects.filter(Boolean), total: list.resultSizeEstimate ?? ids.length };
+}

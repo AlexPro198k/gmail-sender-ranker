@@ -1,5 +1,5 @@
 import { applyRule, emptyFolder } from "./gmail-rules.js";
-import { scanInbox } from "./gmail-scan.js";
+import { scanInbox, listSubjects } from "./gmail-scan.js";
 import { clearToken, getAuthState, getToken, signOut } from "./auth.js";
 
 async function withToken(operation) {
@@ -29,6 +29,7 @@ const handlers = {
         chrome.runtime.sendMessage({ type: "SCAN_PROGRESS", done, total }).catch(() => {})
       )
     ),
+  LIST_SUBJECTS: (message) => withToken((token) => listSubjects(token, message.email)),
   APPLY_SENDER_RULE: (message) =>
     withToken((token) =>
       applyRule(token, message.action, message.email, fetch, { folderName: message.folderName })

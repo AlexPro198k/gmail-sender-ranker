@@ -386,3 +386,14 @@ td:last-child {
 .maintenance { margin-bottom: 8px; }
 .maintenance button.danger { color: #ffb4b4; }
 body.minimized .maintenance { display: none; }
+
+.count-btn { border: 0; background: transparent; color: inherit; cursor: pointer; font: inherit; padding: 2px 4px; border-radius: 6px; }
+.count-btn:hover:not(:disabled) { background: rgba(138, 180, 248, 0.25); }
+.count-btn:disabled { cursor: default; }
+.preview-backdrop { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.55); display: flex; align-items: center; justify-content: center; z-index: 10; }
+.preview-modal { width: min(560px, 92vw); max-height: 80vh; display: flex; flex-direction: column; background: #202124; color: var(--text); border: 1px solid var(--line); border-radius: 12px; padding: 12px; }
+.preview-modal header { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 8px; font-weight: 600; overflow-wrap: anywhere; }
+.preview-modal header button { border: 0; background: transparent; color: inherit; cursor: pointer; font-size: 16px; }
+.preview-modal ol { margin: 0; padding-left: 22px; overflow-y: auto; font-size: 13px; }
+.preview-modal li { padding: 3px 0; overflow-wrap: anywhere; }
+.preview-modal li small { display: block; opacity: 0.6; }
