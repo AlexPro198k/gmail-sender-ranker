@@ -31,3 +31,13 @@ li { background: rgba(255,255,255,.06); border-radius: 14px; padding: 12px; marg
 .count { font-weight: 700; color: #8fb0ff; }
 .actions { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin-top: 10px; }
 .result { font-size: 13px; color: #9fd8a8; margin-top: 6px; }
+
+.count-btn { border: 0; background: transparent; color: inherit; font: inherit; cursor: pointer; padding: 6px 8px; border-radius: 8px; }
+.count-btn:active { background: rgba(138, 180, 248, 0.25); }
+.preview-backdrop { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.6); display: flex; align-items: center; justify-content: center; z-index: 10; }
+.preview-modal { width: 92vw; max-width: 560px; max-height: 80vh; display: flex; flex-direction: column; background: #202124; color: inherit; border: 1px solid rgba(255, 255, 255, 0.15); border-radius: 12px; padding: 12px; }
+.preview-modal header { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 8px; font-weight: 600; overflow-wrap: anywhere; }
+.preview-modal header button { border: 0; background: transparent; color: inherit; font-size: 18px; padding: 6px; }
+.preview-modal ol { margin: 0; padding-left: 22px; overflow-y: auto; font-size: 14px; }
+.preview-modal li { padding: 4px 0; overflow-wrap: anywhere; }
+.preview-modal li small { display: block; opacity: 0.6; }

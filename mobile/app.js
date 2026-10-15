@@ -1,6 +1,6 @@
 import { CLIENT_ID } from "../config.js";
 import { applyRule, emptyFolder } from "../gmail-rules.js";
-import { scanInbox } from "../gmail-scan.js";
+import { scanInbox, listSubjects } from "../gmail-scan.js";
 
 const SCOPE = "https://mail.google.com/ https://www.googleapis.com/auth/gmail.settings.basic";
 const $ = (selector) => document.querySelector(selector);
@@ -50,6 +50,54 @@ function showApp(signedIn) {
   $("#sign-out").hidden = !signedIn;
 }
 
+async function showPreview(sender) {
+  const backdrop = document.createElement("div");
+  backdrop.className = "preview-backdrop";
+  const modal = document.createElement("div");
+  modal.className = "preview-modal";
+  modal.setAttribute("role", "dialog");
+  modal.setAttribute("aria-modal", "true");
+  const head = document.createElement("header");
+  const title = document.createElement("span");
+  title.textContent = `${sender.name} <${sender.email}>`;
+  const close = document.createElement("button");
+  close.type = "button";
+  close.textContent = "\u2715";
+  close.setAttribute("aria-label", "Close preview");
+  head.append(title, close);
+  const body = document.createElement("div");
+  body.textContent = "Loading subjects...";
+  modal.append(head, body);
+  backdrop.append(modal);
+  document.body.append(backdrop);
+
+  const dismiss = () => { backdrop.remove(); document.removeEventListener("keydown", onKey); };
+  const onKey = (event) => { if (event.key === "Escape") dismiss(); };
+  document.addEventListener("keydown", onKey);
+  close.addEventListener("click", dismiss);
+  backdrop.addEventListener("click", (event) => { if (event.target === backdrop) dismiss(); });
+
+  try {
+    const { subjects } = await withToken((t) => listSubjects(t, sender.email));
+    if (!subjects.length) { body.textContent = "No Inbox emails found for this sender."; return; }
+    const list = document.createElement("ol");
+    for (const item of subjects) {
+      const li = document.createElement("li");
+      li.textContent = item.subject;
+      if (item.date) { const d = document.createElement("small"); d.textContent = item.date; li.append(d); }
+      list.append(li);
+    }
+    body.replaceChildren(list);
+    if (sender.count > subjects.length) {
+      const more = document.createElement("small");
+      more.textContent = `Showing the latest ${subjects.length} of ${sender.count}.`;
+      body.append(more);
+    }
+  } catch (error) {
+    body.textContent = error.message;
+  }
+}
+
 function render() {
   const query = $("#filter").value.trim().toLowerCase();
   const list = $("#list");
@@ -65,9 +113,11 @@ function render() {
     email.className = "email";
     email.textContent = sender.email;
     name.append(email);
-    const count = document.createElement("div");
-    count.className = "count";
-    count.textContent = sender.count.toLocaleString();
+    const count = document.createElement("button");
+    count.className = "count count-btn";
+    count.textContent = `${sender.count.toLocaleString()} \uD83D\uDC41`;
+    count.setAttribute("aria-label", `Preview subjects for ${sender.name}`);
+    count.addEventListener("click", () => showPreview(sender));
     top.append(name, count);
 
     const result = document.createElement("div");
