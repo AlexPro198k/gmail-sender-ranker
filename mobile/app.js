@@ -293,29 +293,9 @@ $("#sign-out").addEventListener("click", () => {
   senders = [];
   localStorage.removeItem("signedIn");
   $("#list").replaceChildren();
-  $("#sign-in-ms").hidden = !msConfigured();
-$("#sign-in-ms").addEventListener("click", async () => {
-  try {
-    localStorage.setItem("provider", "microsoft");
-    await startMsSignIn();
-  } catch (error) {
-    alert(error.message);
-  }
-});
-
-(async () => {
+  $("#filter").hidden = true;
   showApp(false);
-  try {
-    const returned = await finishMsSignIn();
-    if (returned || (provider === "microsoft" && cachedMsToken())) {
-      provider = "microsoft";
-      showApp(true);
-      setStatus("Signed in with Microsoft. Tap Scan Inbox to begin.");
-    }
-  } catch (error) {
-    setStatus(error.message, true);
-  }
-})();
+  $("#sign-in-ms").hidden = !msConfigured();
 });
 $("#scan").addEventListener("click", scan);
 $("#filter").addEventListener("input", render);
