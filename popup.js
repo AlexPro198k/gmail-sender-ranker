@@ -63,6 +63,54 @@ async function runRule(action, sender, buttons, result) {
   }
 }
 
+function showDeleteInbox(run, setStatus) {
+  const backdrop = document.createElement("div");
+  backdrop.className = "preview-backdrop";
+  const modal = document.createElement("div");
+  modal.className = "preview-modal";
+  modal.setAttribute("role", "dialog");
+  modal.setAttribute("aria-modal", "true");
+  const head = document.createElement("header");
+  const title = document.createElement("span");
+  title.textContent = "Delete Inbox emails older than...";
+  const close = document.createElement("button");
+  close.type = "button";
+  close.textContent = "\u2715";
+  close.setAttribute("aria-label", "Close");
+  head.append(title, close);
+  const note = document.createElement("p");
+  note.className = "age-note";
+  note.textContent = "Emails are moved to Trash, where Gmail keeps them for 30 days.";
+  const options = document.createElement("div");
+  options.className = "age-options";
+  const dismiss = () => { backdrop.remove(); document.removeEventListener("keydown", onKey); };
+  const onKey = (event) => { if (event.key === "Escape") dismiss(); };
+  for (const [months, label] of [[12, "1 year"], [6, "6 months"], [3, "3 months"], [1, "1 month"]]) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.textContent = `Older than ${label}`;
+    button.addEventListener("click", async () => {
+      if (!confirm(`Move ALL Inbox emails older than ${label} to Trash?`)) return;
+      options.querySelectorAll("button").forEach((b) => (b.disabled = true));
+      note.textContent = "Working...";
+      try {
+        const { trashed } = await run(months);
+        dismiss();
+        setStatus(`${trashed.toLocaleString()} Inbox emails older than ${label} moved to Trash.`);
+      } catch (error) {
+        note.textContent = error instanceof Error ? error.message : String(error);
+        options.querySelectorAll("button").forEach((b) => (b.disabled = false));
+      }
+    });
+    options.append(button);
+  }
+  modal.append(head, note, options);
+  backdrop.append(modal);
+  document.body.append(backdrop);
+  document.addEventListener("keydown", onKey);
+  close.addEventListener("click", dismiss);
+  backdrop.addEventListener("click", (event) => { if (event.target === backdrop) dismiss(); });
+}
 async function showPreview(sender) {
   const backdrop = document.createElement("div");
   backdrop.className = "preview-backdrop";
@@ -351,3 +399,11 @@ for (const [id, folder, label] of [["#empty-trash", "trash", "Trash"], ["#empty-
     }
   });
 }
+
+document.querySelector("#delete-inbox").addEventListener("click", () =>
+  showDeleteInbox(async (months) => {
+    const response = await chrome.runtime.sendMessage({ type: "TRASH_OLDER_THAN", months });
+    if (!response?.ok) throw new Error(response?.error || "No response from the extension. Sign in first.");
+    return response.result;
+  }, setStatus)
+);

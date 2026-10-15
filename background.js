@@ -1,4 +1,4 @@
-import { applyRule, emptyFolder } from "./gmail-rules.js";
+import { applyRule, emptyFolder, trashInboxOlderThan } from "./gmail-rules.js";
 import { scanInbox, listSubjects } from "./gmail-scan.js";
 import { clearToken, getAuthState, getToken, signOut } from "./auth.js";
 
@@ -34,6 +34,7 @@ const handlers = {
     withToken((token) =>
       applyRule(token, message.action, message.email, fetch, { folderName: message.folderName })
     ),
+  TRASH_OLDER_THAN: (message) => withToken((token) => trashInboxOlderThan(token, Number(message.months))),
   EMPTY_FOLDER: (message) => withToken((token) => emptyFolder(token, message.folder))
 };
 

@@ -397,3 +397,8 @@ body.minimized .maintenance { display: none; }
 .preview-modal ol { margin: 0; padding-left: 22px; overflow-y: auto; font-size: 13px; }
 .preview-modal li { padding: 3px 0; overflow-wrap: anywhere; }
 .preview-modal li small { display: block; opacity: 0.6; }
+
+.age-options { display: grid; gap: 8px; }
+.age-options button { border: 1px solid var(--line, rgba(255,255,255,.15)); border-radius: 8px; background: rgba(255,255,255,.08); color: inherit; cursor: pointer; font: inherit; padding: 10px; }
+.age-options button:hover:not(:disabled) { background: rgba(255,107,107,.25); }
+.age-note { font-size: 12px; opacity: .7; margin: 0 0 8px; }

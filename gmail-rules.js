@@ -195,3 +195,21 @@ export async function applyRule(token, action, rawEmail, fetchImpl = fetch, opti
 
   return { email, action, filterCreated, trashed: ids.length };
 }
+
+export const AGE_OPTIONS = Object.freeze({ 12: "1 year", 6: "6 months", 3: "3 months", 1: "1 month" });
+
+// Moves Inbox messages older than the chosen number of months to Trash (recoverable for 30 days).
+export async function trashInboxOlderThan(token, months, fetchImpl = fetch) {
+  if (!Object.hasOwn(AGE_OPTIONS, months)) throw new Error("Unknown time range.");
+  const ids = [];
+  let pageToken;
+  do {
+    const page = await api(token, "/messages", {
+      params: { q: `in:inbox older_than:${months}m`, maxResults: "500", pageToken }
+    }, fetchImpl);
+    ids.push(...(page.messages ?? []).map((message) => message.id));
+    pageToken = page.nextPageToken;
+  } while (pageToken);
+  await trashMessages(token, ids, fetchImpl);
+  return { months, trashed: ids.length };
+}

@@ -9,7 +9,7 @@
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' https://accounts.google.com/gsi/; style-src 'self' https://accounts.google.com/gsi/; frame-src https://accounts.google.com/gsi/; connect-src https://gmail.googleapis.com https://accounts.google.com; manifest-src 'self'; base-uri 'none'; form-action 'none'">
   <link rel="manifest" href="manifest.webmanifest">
   <title>Sender Ranker</title>
-  <link rel="stylesheet" href="app.css?v=4">
+  <link rel="stylesheet" href="app.css?v=5">
 </head>
 <body>
   <header>
@@ -26,6 +26,7 @@
         <button id="scan" class="primary">Scan Inbox</button>
         <button id="empty-trash" class="danger">Empty Trash</button>
         <button id="empty-spam" class="danger">Delete Spam</button>
+        <button id="delete-inbox" class="danger">Delete Inbox</button>
       </div>
       <p id="status" role="status"></p>
       <input id="filter" type="search" placeholder="Filter senders" hidden>
@@ -33,6 +34,6 @@
     </section>
   </main>
   <script src="https://accounts.google.com/gsi/client" async defer></script>
-  <script type="module" src="app.js?v=4"></script>
+  <script type="module" src="app.js?v=5"></script>
 </body>
 </html>

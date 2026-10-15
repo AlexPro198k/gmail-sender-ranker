@@ -94,3 +94,15 @@ for (const bad of ['a@b.com" OR in:inbox', "no-at-sign", "a b@c.com", "", null, 
 await assert.rejects(applyRule("tok", "archive", "x@y.com", makeGmail().fetchImpl), /Unknown action/);
 
 console.log("All gmail-rules tests passed.");
+
+import { trashInboxOlderThan } from "../gmail-rules.js";
+{
+  const { calls, fetchImpl } = makeGmail({ pages: [["a"], ["b", "c"]] });
+  const result = await trashInboxOlderThan("tok", 6, fetchImpl);
+  assert.equal(result.trashed, 3);
+  assert.equal(calls[0].query.q, "in:inbox older_than:6m");
+  const modify = calls.find((c) => c.path === "/messages/batchModify");
+  assert.deepEqual(modify.body.ids, ["a", "b", "c"]);
+  assert.deepEqual(modify.body.addLabelIds, ["TRASH"]);
+  await assert.rejects(() => trashInboxOlderThan("tok", 2, fetchImpl));
+}
