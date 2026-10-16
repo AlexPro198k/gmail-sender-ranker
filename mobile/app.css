@@ -93,7 +93,8 @@ main { padding: 0 16px 40px; }
   font-weight: 600;
   min-height: 50px;
 }
-#sign-in-ms {
+#sign-in-ms,
+#sign-in-yahoo {
   background: var(--fill3);
   color: var(--label);
 }

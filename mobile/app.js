@@ -1,8 +1,9 @@
 import { CLIENT_ID } from "../config.js";
-import { applyRule, emptyFolder, trashInboxOlderThan } from "../gmail-rules.js?v=6";
-import { scanInbox, listSubjects } from "../gmail-scan.js?v=6";
-import * as msMail from "../ms-mail.js?v=6";
-import { cachedMsToken, finishMsSignIn, msConfigured, msSignOut, startMsSignIn } from "../ms-auth.js?v=6";
+import { applyRule, emptyFolder, trashInboxOlderThan } from "../gmail-rules.js?v=8";
+import { scanInbox, listSubjects } from "../gmail-scan.js?v=8";
+import * as msMail from "../ms-mail.js?v=8";
+import { cachedMsToken, finishMsSignIn, msConfigured, msSignOut, startMsSignIn } from "../ms-auth.js?v=8";
+import { cachedYahooToken, finishYahooSignIn, yahooConfigured, yahooSignOut, startYahooSignIn } from "../yahoo-auth.js?v=8";
 
 const SCOPE = "https://mail.google.com/ https://www.googleapis.com/auth/gmail.settings.basic";
 const $ = (selector) => document.querySelector(selector);
@@ -12,9 +13,24 @@ let token = null;
 let tokenExpires = 0;
 let tokenClient = null;
 let senders = [];
-let provider = localStorage.getItem("provider") === "microsoft" ? "microsoft" : "google";
+let provider = localStorage.getItem("provider") || "google";
 const googleApi = { scanInbox, listSubjects, applyRule, emptyFolder, trashInboxOlderThan };
-const api = () => (provider === "microsoft" ? msMail : googleApi);
+
+const YAHOO_NOT_AVAILABLE = "Mail management isn't available for Yahoo Mail — Yahoo doesn't provide a public REST API for third-party apps.";
+
+const yahooApi = {
+  scanInbox: () => Promise.reject(new Error(YAHOO_NOT_AVAILABLE)),
+  listSubjects: () => Promise.reject(new Error(YAHOO_NOT_AVAILABLE)),
+  applyRule: () => Promise.reject(new Error(YAHOO_NOT_AVAILABLE)),
+  emptyFolder: () => Promise.reject(new Error(YAHOO_NOT_AVAILABLE)),
+  trashInboxOlderThan: () => Promise.reject(new Error(YAHOO_NOT_AVAILABLE))
+};
+
+const api = () => {
+  if (provider === "microsoft") return msMail;
+  if (provider === "yahoo") return yahooApi;
+  return googleApi;
+};
 
 function setStatus(message, isError = false) {
   statusEl.textContent = message;
@@ -38,23 +54,21 @@ function getToken() {
   });
 }
 
-// Retries once with a fresh token if Google rejects the cached one.
 async function withToken(operation) {
   if (provider === "microsoft") {
     const cached = cachedMsToken();
-    if (!cached) {
-      await startMsSignIn();
-      throw new Error("Redirecting to Microsoft sign-in...");
-    }
+    if (!cached) { await startMsSignIn(); throw new Error("Redirecting to Microsoft sign-in..."); }
     try {
       return await operation(cached);
     } catch (error) {
-      if (error.status === 401) {
-        msSignOut();
-        await startMsSignIn();
-      }
+      if (error.status === 401) { msSignOut(); await startMsSignIn(); }
       throw error;
     }
+  }
+  if (provider === "yahoo") {
+    const cached = cachedYahooToken();
+    if (!cached) { await startYahooSignIn(); throw new Error("Redirecting to Yahoo sign-in..."); }
+    return operation(cached.token);
   }
   try {
     return await operation(await getToken());
@@ -65,10 +79,23 @@ async function withToken(operation) {
   }
 }
 
-function showApp(signedIn) {
+function showApp(signedIn, userLabel = "") {
   $("#signin").hidden = signedIn;
   $("#app").hidden = !signedIn;
   $("#sign-out").hidden = !signedIn;
+  if (signedIn && userLabel) {
+    const h1 = document.querySelector("header h1");
+    h1.textContent = userLabel ? `Sender Ranker · ${userLabel}` : "Sender Ranker";
+  } else {
+    document.querySelector("header h1").textContent = "Sender Ranker";
+  }
+  // Disable mail-management buttons for Yahoo
+  const isYahoo = provider === "yahoo";
+  ["#scan", "#empty-trash", "#empty-spam", "#delete-inbox"].forEach((id) => {
+    const el = $(id);
+    if (el) el.disabled = isYahoo;
+  });
+  if (isYahoo && signedIn) setStatus(YAHOO_NOT_AVAILABLE, true);
 }
 
 async function showPreview(sender) {
@@ -136,7 +163,7 @@ function showDeleteInbox(run, setStatus) {
   head.append(title, close);
   const note = document.createElement("p");
   note.className = "age-note";
-  note.textContent = "Emails are moved to Trash, where Gmail keeps them for 30 days.";
+  note.textContent = "Emails are moved to Trash, where they are kept for 30 days.";
   const options = document.createElement("div");
   options.className = "age-options";
   const dismiss = () => { backdrop.remove(); document.removeEventListener("keydown", onKey); };
@@ -167,6 +194,7 @@ function showDeleteInbox(run, setStatus) {
   close.addEventListener("click", dismiss);
   backdrop.addEventListener("click", (event) => { if (event.target === backdrop) dismiss(); });
 }
+
 function render() {
   const query = $("#filter").value.trim().toLowerCase();
   const list = $("#list");
@@ -275,6 +303,17 @@ function wireEmpty(id, folder, label) {
   });
 }
 
+function resetSignIn() {
+  token = null;
+  senders = [];
+  localStorage.removeItem("signedIn");
+  $("#list").replaceChildren();
+  $("#filter").hidden = true;
+  showApp(false);
+  $("#sign-in-ms").hidden = !msConfigured();
+  $("#sign-in-yahoo").hidden = !yahooConfigured();
+}
+
 $("#sign-in").addEventListener("click", async () => {
   try {
     provider = "google";
@@ -286,17 +325,15 @@ $("#sign-in").addEventListener("click", async () => {
     alert(error.message);
   }
 });
+
 $("#sign-out").addEventListener("click", () => {
   if (provider === "microsoft") msSignOut();
+  else if (provider === "yahoo") yahooSignOut();
   else if (token) google.accounts.oauth2.revoke(token);
-  token = null;
-  senders = [];
-  localStorage.removeItem("signedIn");
-  $("#list").replaceChildren();
-  $("#filter").hidden = true;
-  showApp(false);
-  $("#sign-in-ms").hidden = !msConfigured();
+  localStorage.removeItem("provider");
+  resetSignIn();
 });
+
 $("#scan").addEventListener("click", scan);
 $("#filter").addEventListener("input", render);
 wireEmpty("#empty-trash", "trash", "Trash");
@@ -304,6 +341,7 @@ wireEmpty("#empty-spam", "spam", "Spam");
 $("#delete-inbox").addEventListener("click", () =>
   showDeleteInbox((months) => withToken((t) => api().trashInboxOlderThan(t, months)), setStatus)
 );
+
 $("#sign-in-ms").hidden = !msConfigured();
 $("#sign-in-ms").addEventListener("click", async () => {
   try {
@@ -314,14 +352,44 @@ $("#sign-in-ms").addEventListener("click", async () => {
   }
 });
 
+$("#sign-in-yahoo").hidden = !yahooConfigured();
+$("#sign-in-yahoo").addEventListener("click", async () => {
+  try {
+    localStorage.setItem("provider", "yahoo");
+    await startYahooSignIn();
+  } catch (error) {
+    alert(error.message);
+  }
+});
+
 (async () => {
   showApp(false);
+  $("#sign-in-ms").hidden = !msConfigured();
+  $("#sign-in-yahoo").hidden = !yahooConfigured();
   try {
-    const returned = await finishMsSignIn();
-    if (returned || (provider === "microsoft" && cachedMsToken())) {
+    // Microsoft redirect return
+    const msReturned = await finishMsSignIn();
+    if (msReturned || (provider === "microsoft" && cachedMsToken())) {
       provider = "microsoft";
+      localStorage.setItem("provider", provider);
       showApp(true);
       setStatus("Signed in with Microsoft. Tap Scan Inbox to begin.");
+      return;
+    }
+    // Yahoo redirect return
+    const yahooSession = await finishYahooSignIn();
+    if (yahooSession || (provider === "yahoo" && cachedYahooToken())) {
+      provider = "yahoo";
+      localStorage.setItem("provider", provider);
+      const session = yahooSession || cachedYahooToken();
+      const label = session?.email || "Yahoo";
+      showApp(true, label);
+      return;
+    }
+    // Google silent restore
+    if (provider === "google" && localStorage.getItem("signedIn")) {
+      showApp(true);
+      setStatus("Tap Scan Inbox to begin.");
     }
   } catch (error) {
     setStatus(error.message, true);

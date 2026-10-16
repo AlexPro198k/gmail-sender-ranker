@@ -6,10 +6,10 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="theme-color" content="#16181d">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' https://accounts.google.com/gsi/; style-src 'self' https://accounts.google.com/gsi/; frame-src https://accounts.google.com/gsi/; connect-src https://gmail.googleapis.com https://accounts.google.com https://graph.microsoft.com https://login.microsoftonline.com; manifest-src 'self'; base-uri 'none'; form-action 'none'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' https://accounts.google.com/gsi/; style-src 'self' https://accounts.google.com/gsi/; frame-src https://accounts.google.com/gsi/; connect-src https://gmail.googleapis.com https://accounts.google.com https://graph.microsoft.com https://login.microsoftonline.com https://api.login.yahoo.com; manifest-src 'self'; base-uri 'none'; form-action 'none'"
   <link rel="manifest" href="manifest.webmanifest">
   <title>Sender Ranker</title>
-  <link rel="stylesheet" href="app.css?v=7">
+  <link rel="stylesheet" href="app.css?v=8">
 </head>
 <body>
   <header>
@@ -21,6 +21,7 @@
       <p>Rank your Inbox senders and manage them with one tap.</p>
       <button id="sign-in" class="primary">Sign in with Google</button>
       <button id="sign-in-ms" hidden>Sign in with Microsoft (Outlook / Hotmail / Live)</button>
+      <button id="sign-in-yahoo" hidden>Sign in with Yahoo Mail</button>
     </section>
     <section id="app" hidden>
       <div class="toolbar">
@@ -35,6 +36,6 @@
     </section>
   </main>
   <script src="https://accounts.google.com/gsi/client" async defer></script>
-  <script type="module" src="app.js?v=6"></script>
+  <script type="module" src="app.js?v=8"></script>
 </body>
 </html>

@@ -282,6 +282,11 @@ async function showSetupIfNeeded() {
     document.querySelector("#signin-hint").textContent =
       "Sign-in isn't available in this build yet: set CLIENT_ID in config.js (see README).";
   }
+  // Show Yahoo button only if YAHOO_CLIENT_ID is set (background reports it)
+  const yahooBtn = document.querySelector("#sign-in-yahoo");
+  if (yahooBtn) yahooBtn.hidden = !response.result.yahooConfigured;
+  const msBtn = document.querySelector("#sign-in-ms");
+  if (msBtn) msBtn.hidden = !response.result.msConfigured;
 }
 
 signInButton.addEventListener("click", async () => {
@@ -294,6 +299,36 @@ signInButton.addEventListener("click", async () => {
     setStatus(response?.error || "Sign-in failed.", true);
   }
 });
+
+const yahooSignInButton = document.querySelector("#sign-in-yahoo");
+if (yahooSignInButton) {
+  yahooSignInButton.addEventListener("click", async () => {
+    setStatus("Opening Yahoo sign-in...");
+    const response = await chrome.runtime.sendMessage({ type: "SIGN_IN_YAHOO" });
+    if (response?.ok) {
+      const { name, email } = response.result;
+      setupPanel.hidden = true;
+      setStatus(`Signed in as ${name || email || "Yahoo user"}. Note: mail management is not available for Yahoo Mail.`);
+    } else {
+      setStatus(response?.error || "Yahoo sign-in failed.", true);
+    }
+  });
+}
+
+const msSignInButton = document.querySelector("#sign-in-ms");
+if (msSignInButton) {
+  msSignInButton.addEventListener("click", async () => {
+    setStatus("Opening Microsoft sign-in...");
+    const response = await chrome.runtime.sendMessage({ type: "SIGN_IN_MS" });
+    if (response?.ok) {
+      const { name, email } = response.result;
+      setupPanel.hidden = true;
+      setStatus(`Signed in as ${name || email || "Microsoft user"}. Note: mail management is not available for Outlook in this extension — use the mobile page.`);
+    } else {
+      setStatus(response?.error || "Microsoft sign-in failed.", true);
+    }
+  });
+}
 
 showSetupIfNeeded();
 
