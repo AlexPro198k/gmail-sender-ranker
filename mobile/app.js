@@ -9,6 +9,30 @@ const SCOPE = "https://mail.google.com/ https://www.googleapis.com/auth/gmail.se
 const $ = (selector) => document.querySelector(selector);
 const statusEl = $("#status");
 
+// ── Theme toggle ──
+(function initTheme() {
+  const root = document.documentElement;
+  const btn = document.getElementById("theme-toggle");
+  const saved = localStorage.getItem("theme");
+  const apply = (theme) => {
+    if (theme === "holonet") {
+      root.setAttribute("data-theme", "holonet");
+      btn.textContent = "iOS";
+      btn.setAttribute("aria-label", "Switch to iOS theme");
+    } else {
+      root.removeAttribute("data-theme");
+      btn.textContent = "HOLONET";
+      btn.setAttribute("aria-label", "Switch to HOLONET theme");
+    }
+  };
+  apply(saved || "ios");
+  btn.addEventListener("click", () => {
+    const next = root.getAttribute("data-theme") === "holonet" ? "ios" : "holonet";
+    localStorage.setItem("theme", next);
+    apply(next);
+  });
+})();
+
 let token = null;
 let tokenExpires = 0;
 let tokenClient = null;

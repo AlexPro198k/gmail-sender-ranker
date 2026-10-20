@@ -18,15 +18,61 @@
   --fill3: rgba(118,118,128,.18);
   --radius-card: 16px;
   --radius-btn: 12px;
+  --font-body: -apple-system, "SF Pro Text", system-ui, sans-serif;
+  --scanlines: none;
+  --glow: none;
+  --header-bg: rgba(0,0,0,.72);
+  --card-border: none;
+}
+
+/* ── HOLONET theme (Star Wars terminal) ── */
+[data-theme="holonet"] {
+  --bg: #00060f;
+  --bg1: #001a2e;
+  --bg2: #002440;
+  --bg3: #003055;
+  --label: #00e5ff;
+  --label2: rgba(0,229,255,.55);
+  --label3: rgba(0,229,255,.25);
+  --accent: #00e5ff;
+  --accent-press: #00b8d4;
+  --red: #ff6b35;
+  --red-soft: rgba(255,107,53,.15);
+  --green: #39ff14;
+  --separator: rgba(0,229,255,.2);
+  --fill1: rgba(0,229,255,.12);
+  --fill2: rgba(0,229,255,.08);
+  --fill3: rgba(0,229,255,.05);
+  --radius-card: 4px;
+  --radius-btn: 3px;
+  --font-body: "Courier New", "Lucida Console", monospace;
+  --scanlines: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(0,229,255,.03) 2px,
+    rgba(0,229,255,.03) 4px
+  );
+  --glow: 0 0 8px rgba(0,229,255,.4);
+  --header-bg: rgba(0,6,15,.88);
+  --card-border: 1px solid rgba(0,229,255,.18);
 }
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 body {
   margin: 0;
   background: var(--bg);
   color: var(--label);
-  font: 17px/1.4 -apple-system, "SF Pro Text", system-ui, sans-serif;
+  font: 17px/1.4 var(--font-body);
   -webkit-font-smoothing: antialiased;
   padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+}
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  background: var(--scanlines);
+  pointer-events: none;
+  z-index: 9999;
 }
 
 /* ── Header ── */
@@ -38,7 +84,7 @@ header {
   position: sticky;
   top: 0;
   z-index: 5;
-  background: rgba(0,0,0,.72);
+  background: var(--header-bg);
   backdrop-filter: saturate(180%) blur(20px);
   -webkit-backdrop-filter: saturate(180%) blur(20px);
   border-bottom: .5px solid var(--separator);
@@ -48,7 +94,26 @@ h1 {
   font-weight: 600;
   letter-spacing: -.3px;
   margin: 0;
+  text-shadow: var(--glow);
 }
+
+/* ── Theme toggle ── */
+#theme-toggle {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  background: var(--fill2);
+  color: var(--label2);
+  border: 1px solid var(--separator);
+  border-radius: 4px;
+  padding: 4px 9px;
+  min-height: unset;
+  line-height: 1.4;
+  white-space: nowrap;
+  box-shadow: var(--glow);
+}
+#theme-toggle:active { opacity: .7; }
 #sign-out {
   font-size: 15px;
   font-weight: 500;
@@ -405,3 +470,56 @@ li {
   border-radius: 10px;
 }
 .auto-rule-reject:active { background: var(--red-soft); color: var(--red); opacity: 1; }
+
+/* ── HOLONET theme overrides ── */
+[data-theme="holonet"] h1::before { content: "\25B6  "; font-size: 11px; opacity: .7; }
+[data-theme="holonet"] li {
+  border: var(--card-border);
+  box-shadow: 0 0 12px rgba(0,229,255,.06);
+}
+[data-theme="holonet"] button {
+  border: 1px solid rgba(0,229,255,.2);
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  font-size: 12px;
+}
+[data-theme="holonet"] button.primary {
+  background: transparent;
+  color: var(--accent);
+  border-color: var(--accent);
+  box-shadow: 0 0 10px rgba(0,229,255,.3), inset 0 0 10px rgba(0,229,255,.05);
+  text-shadow: 0 0 8px rgba(0,229,255,.8);
+}
+[data-theme="holonet"] button.primary:active {
+  background: rgba(0,229,255,.1);
+  box-shadow: 0 0 18px rgba(0,229,255,.5);
+}
+[data-theme="holonet"] button.danger {
+  border-color: rgba(255,107,53,.4);
+  box-shadow: 0 0 8px rgba(255,107,53,.15);
+}
+[data-theme="holonet"] .count-btn {
+  border: 1px solid rgba(0,229,255,.25);
+  text-shadow: 0 0 6px rgba(0,229,255,.6);
+}
+[data-theme="holonet"] input[type=search] {
+  border: 1px solid rgba(0,229,255,.2);
+  border-radius: 3px;
+  caret-color: var(--accent);
+}
+[data-theme="holonet"] .preview-modal {
+  border: 1px solid rgba(0,229,255,.25);
+  border-bottom: none;
+  box-shadow: 0 -4px 40px rgba(0,229,255,.12);
+  border-radius: 6px 6px 0 0;
+}
+[data-theme="holonet"] .preview-modal::before { background: rgba(0,229,255,.3); }
+[data-theme="holonet"] #signin::before { content: "\25C6"; color: var(--accent); text-shadow: 0 0 20px rgba(0,229,255,.8); }
+[data-theme="holonet"] .auto-rule-apply {
+  background: transparent;
+  color: var(--accent);
+  border: 1px solid var(--accent);
+  box-shadow: 0 0 8px rgba(0,229,255,.25);
+}
+[data-theme="holonet"] .auto-rule-action--folder { border: 1px solid rgba(0,229,255,.3); }
+[data-theme="holonet"] .auto-rule-action--block  { border: 1px solid rgba(255,107,53,.3); }
