@@ -1,9 +1,9 @@
 import { CLIENT_ID } from "../config.js";
-import { applyRule, emptyFolder, trashInboxOlderThan, getExistingFolder, getDuplicateRules, mergeRules } from "../gmail-rules.js?v=8";
-import { scanInbox, listSubjects } from "../gmail-scan.js?v=8";
-import * as msMail from "../ms-mail.js?v=8";
-import { cachedMsToken, finishMsSignIn, msConfigured, msSignOut, startMsSignIn } from "../ms-auth.js?v=8";
-import { cachedYahooToken, finishYahooSignIn, yahooConfigured, yahooSignOut, startYahooSignIn } from "../yahoo-auth.js?v=8";
+import { applyRule, emptyFolder, trashInboxOlderThan, getExistingFolder, getDuplicateRules, mergeRules } from "../gmail-rules.js";
+import { scanInbox, listSubjects } from "../gmail-scan.js";
+import * as msMail from "../ms-mail.js";
+import { cachedMsToken, finishMsSignIn, msConfigured, msSignOut, startMsSignIn } from "../ms-auth.js";
+import { cachedYahooToken, finishYahooSignIn, yahooConfigured, yahooSignOut, startYahooSignIn } from "../yahoo-auth.js";
 
 const SCOPE = "https://mail.google.com/ https://www.googleapis.com/auth/gmail.settings.basic";
 const $ = (selector) => document.querySelector(selector);
