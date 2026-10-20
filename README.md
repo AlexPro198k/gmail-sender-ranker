@@ -61,6 +61,8 @@ Run `node tests/gmail-rules.test.mjs` and `node tests/gmail-scan.test.mjs` to te
 
 The mobile page can also manage Microsoft mailboxes through Microsoft Graph, with the same features
 (rank senders, preview subjects, Delete / Folder / Delete Always / Block, Empty Trash, Delete Spam, Delete Inbox by age).
+For Gmail, Auto Rule Suggestions group business senders by brand domain and apply a domain-wide rule;
+public mailbox providers remain scoped to each sender address and use the mailbox name as the folder suggestion.
 
 1. In the [Entra admin center](https://entra.microsoft.com/) go to **App registrations > New registration**.
    Choose **Accounts in any organizational directory and personal Microsoft accounts**.

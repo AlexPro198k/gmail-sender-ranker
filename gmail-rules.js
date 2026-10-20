@@ -61,13 +61,13 @@ async function ensureBlockedLabel(token, fetchImpl) {
   }
 }
 
-async function listMessageIds(token, email, fetchImpl) {
+async function listMessageIds(token, query, fetchImpl) {
   const ids = [];
   let pageToken;
   do {
     const page = await api(token, "/messages", {
       params: {
-        q: `from:"${email}" -in:trash`,
+        q: `${query} -in:trash`,
         includeSpamTrash: "true",
         maxResults: "500",
         pageToken
@@ -158,7 +158,7 @@ export async function mergeRules(token, domain, entries, targetFolderName, fetch
   // Move all messages from old labels to target label, then recreate one filter per email
   let moved = 0;
   for (const { email, labelId: oldLabelId } of entries) {
-    const ids = await listMessageIds(token, email, fetchImpl);
+    const ids = await listMessageIds(token, `from:"${email}"`, fetchImpl);
     if (ids.length) {
       await moveToLabel(token, ids, targetLabelId, fetchImpl);
       moved += ids.length;
@@ -180,15 +180,34 @@ export async function mergeRules(token, domain, entries, targetFolderName, fetch
 // Returns senders that have more than one folder filter, grouped by domain.
 // Falls back to fuzzy-matching an existing label name against the sender domain.
 export async function getExistingFolder(token, rawEmail, fetchImpl = fetch) {
-  const email = normalizeEmail(rawEmail);
-  const domain = email.split("@")[1];
-  const domainBase = domain.split(".")[0].toLowerCase(); // e.g. "amazon" from "amazon.com"
+  const emails = (Array.isArray(rawEmail) ? rawEmail : [rawEmail]).map(normalizeEmail);
+  const domains = [...new Set(emails.map((email) => email.split("@")[1]))];
+  const domainRoots = domains.map((domain) => {
+    const labels = domain.split(".");
+    const multiLabelSuffix = labels.length > 2 &&
+      (["com", "co", "net", "org", "gov", "edu", "ac"].includes(labels.at(-2)) ||
+        (labels.at(-1) === "gov" && /^[a-z]{2}$/.test(labels.at(-2))));
+    return labels.slice(-(multiLabelSuffix ? 3 : 2)).join(".");
+  });
+  const domainBases = domainRoots.map((root) =>
+    root.split(".")[0].replace(/[-_](mail|email|emails|messaging|notify|alerts?)$/, "")
+  );
 
   // 1. Check existing filters first
   const { filters = [] } = await api(token, "/settings/filters", {}, fetchImpl);
   const match = filters.find((f) => {
     const from = String(f.criteria?.from || "").toLowerCase().trim();
-    return from === email || from === domain || email.endsWith("@" + from) || from.endsWith("@" + domain);
+    const query = String(f.criteria?.query || "").toLowerCase();
+    return emails.some((email) => {
+      const domain = email.split("@")[1];
+      return from === email || from === domain || from === `@${domain}` ||
+        email.endsWith("@" + from) || from.endsWith("@" + domain) ||
+        query.includes(domain) || query.includes(`@${domain}`) ||
+        domainRoots.some((root) =>
+          from === root || from === `@${root}` || from.endsWith(`.${root}`) ||
+          query.includes(`from:(${root})`) || query.includes(`from:${root}`)
+        );
+    });
   });
   if (match) {
     const labelId = match.action?.addLabelIds?.find((id) => !["TRASH", "INBOX", "UNREAD", "STARRED", "SPAM"].includes(id));
@@ -199,10 +218,45 @@ export async function getExistingFolder(token, rawEmail, fetchImpl = fetch) {
     }
   }
 
-  // 2. Fallback: find a label whose name matches the sender domain base (e.g. "AMAZON" ~ "amazon.com")
+  // 2. Fallback: find a label whose name matches one of the sender brands.
   const { labels = [] } = await api(token, "/labels", {}, fetchImpl);
-  const fuzzy = labels.find((l) => l.id.startsWith("Label_") && l.name.toLowerCase().replace(/[^a-z0-9]/g, "") === domainBase.replace(/[^a-z0-9]/g, ""));
+  const bases = new Set(domainBases.map((base) => base.replace(/[^a-z0-9]/g, "")));
+  const fuzzy = labels.find((l) => l.id.startsWith("Label_") && bases.has(l.name.toLowerCase().replace(/[^a-z0-9]/g, "")));
   return fuzzy?.name ?? null;
+}
+
+function normalizeRuleDomains(rawDomains) {
+  if (rawDomains === undefined) return null;
+  if (!Array.isArray(rawDomains) || rawDomains.length === 0) {
+    throw new Error("At least one sender domain is required.");
+  }
+  const domains = [...new Set(rawDomains.map((value) => String(value).trim().toLowerCase()))];
+  if (domains.some((domain) =>
+    domain.length > 253 ||
+    !/^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/.test(domain)
+  )) {
+    throw new Error("A sender domain is invalid.");
+  }
+  return domains;
+}
+
+function isOwnDomain(profileEmail, domains) {
+  const ownDomain = String(profileEmail || "").toLowerCase().split("@")[1] || "";
+  return domains.some((domain) =>
+    ownDomain === domain || ownDomain.endsWith(`.${domain}`) || domain.endsWith(`.${ownDomain}`)
+  );
+}
+
+function ruleCriteria(email, domains) {
+  if (!domains) return { from: email };
+  const terms = domains.map((domain) => `from:(${domain})`);
+  return { query: terms.length === 1 ? terms[0] : `{${terms.join(" ")}}` };
+}
+
+function ruleMessageQuery(email, domains) {
+  if (!domains) return `from:"${email}"`;
+  const terms = domains.map((domain) => `from:(${domain})`);
+  return terms.length === 1 ? terms[0] : `{${terms.join(" ")}}`;
 }
 
 export async function emptyFolder(token, folder, fetchImpl = fetch) {
@@ -224,6 +278,9 @@ export async function emptyFolder(token, folder, fetchImpl = fetch) {
 export async function applyRule(token, action, rawEmail, fetchImpl = fetch, options = {}) {
   if (!Object.values(ACTIONS).includes(action)) throw new Error("Unknown action.");
   const email = normalizeEmail(rawEmail);
+  const domains = normalizeRuleDomains(options.fromDomains);
+  const criteria = ruleCriteria(email, domains);
+  const messageQuery = ruleMessageQuery(email, domains);
 
   if (action === ACTIONS.FOLDER) {
     const folderName = String(options.folderName ?? "").trim();
@@ -231,7 +288,8 @@ export async function applyRule(token, action, rawEmail, fetchImpl = fetch, opti
       throw new Error("Enter a folder name (up to 100 characters).");
     }
     const profile = await api(token, "/profile", {}, fetchImpl);
-    if (String(profile.emailAddress).toLowerCase() === email) {
+    if (String(profile.emailAddress).toLowerCase() === email ||
+      (domains && isOwnDomain(profile.emailAddress, domains))) {
       throw new Error("Refusing to create a rule for your own address.");
     }
     const labelId = await ensureLabel(token, folderName, fetchImpl);
@@ -239,19 +297,20 @@ export async function applyRule(token, action, rawEmail, fetchImpl = fetch, opti
     try {
       await api(token, "/settings/filters", {
         method: "POST",
-        body: { criteria: { from: email }, action: { addLabelIds: [labelId], removeLabelIds: ["INBOX"] } }
+        body: { criteria, action: { addLabelIds: [labelId], removeLabelIds: ["INBOX"] } }
       }, fetchImpl);
     } catch (error) {
       if (error.status === 400 && /already exists/i.test(error.message)) filterCreated = false;
       else throw error;
     }
-    const ids = await listMessageIds(token, email, fetchImpl);
+    const ids = await listMessageIds(token, messageQuery, fetchImpl);
     await moveToLabel(token, ids, labelId, fetchImpl);
-    return { email, action, filterCreated, moved: ids.length, folderName };
+    return { email, action, filterCreated, moved: ids.length, folderName, ...(domains ? { domains } : {}) };
   }
 
   const profile = await api(token, "/profile", {}, fetchImpl);
-  if (String(profile.emailAddress).toLowerCase() === email) {
+  if (String(profile.emailAddress).toLowerCase() === email ||
+    (domains && isOwnDomain(profile.emailAddress, domains))) {
     throw new Error("Refusing to create a rule for your own address.");
   }
 
@@ -265,7 +324,7 @@ export async function applyRule(token, action, rawEmail, fetchImpl = fetch, opti
     try {
       await api(token, "/settings/filters", {
         method: "POST",
-        body: { criteria: { from: email }, action: filterAction }
+        body: { criteria, action: filterAction }
       }, fetchImpl);
     } catch (error) {
       if (error.status === 400 && /already exists/i.test(error.message)) {
@@ -276,7 +335,7 @@ export async function applyRule(token, action, rawEmail, fetchImpl = fetch, opti
     }
   }
 
-  const ids = await listMessageIds(token, email, fetchImpl);
+  const ids = await listMessageIds(token, messageQuery, fetchImpl);
   await trashMessages(token, ids, fetchImpl);
 
   return { email, action, filterCreated, trashed: ids.length };
