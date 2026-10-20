@@ -409,6 +409,13 @@ const PROMO_TOKENS = new Set(["noreply", "no-reply", "donotreply", "newsletter",
   "support", "notifications", "notify", "alert", "alerts", "updates", "mailer",
   "bounce", "reply", "auto", "automated", "system", "service", "billing"]);
 
+// Known email provider domain bases — never suggest rules for these
+const EMAIL_PROVIDERS = new Set([
+  "gmail", "googlemail", "yahoo", "ymail", "outlook", "hotmail", "live",
+  "msn", "icloud", "me", "mac", "aol", "proton", "protonmail", "zoho",
+  "fastmail", "tutanota", "gmx", "web", "mail", "yandex", "inbox"
+]);
+
 function isPromo(sender) {
   const localPart = sender.email.split("@")[0];
   return tokenize(localPart).concat(tokenize(sender.name)).some((t) => PROMO_TOKENS.has(t));
@@ -419,7 +426,8 @@ function buildAutoRuleSuggestions(list) {
   for (const s of list) {
     const domain = s.email.split("@")[1] || "";
     const base = domain.split(".")[0].toLowerCase();
-    if (!base) continue;
+    // Skip: too short (< 4 chars) or a known email provider
+    if (base.length < 4 || EMAIL_PROVIDERS.has(base)) continue;
     if (!byBase.has(base)) byBase.set(base, []);
     byBase.get(base).push(s);
   }
