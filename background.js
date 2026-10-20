@@ -5,21 +5,21 @@ import { YAHOO_CLIENT_ID, MS_CLIENT_ID } from "./config.js";
 
 const YAHOO_SCOPE = "openid email profile";
 const YAHOO_AUTH = "https://api.login.yahoo.com/oauth2/request_auth";
-const MS_SCOPE = "openid email profile User.Read";
 const MS_AUTH = "https://login.microsoftonline.com/common/oauth2/v2.0/authorize";
-const MS_TOKEN = "https://login.microsoftonline.com/common/oauth2/v2.0/token";
 
 async function msSignInExtension() {
   if (!MS_CLIENT_ID) throw new Error("Set MS_CLIENT_ID in config.js to enable Microsoft sign-in.");
-  const redirectUri = chrome.identity.getRedirectURL();
-  // Use implicit flow (token) since chrome.identity doesn't support PKCE code exchange
+  // chrome.identity.getRedirectURL() returns https://<ext-id>.chromiumapp.org/
+  // Microsoft requires this registered under Web platform with implicit id_token enabled.
+  // We append a path so the URI is unambiguous and matches exactly what's registered.
+  const redirectUri = chrome.identity.getRedirectURL("ms");
   const params = new URLSearchParams({
     client_id: MS_CLIENT_ID,
-    response_type: "token",
+    response_type: "id_token",
     redirect_uri: redirectUri,
-    scope: MS_SCOPE,
+    scope: "openid email profile",
     response_mode: "fragment",
-    nonce: Math.random().toString(36).slice(2)
+    nonce: crypto.randomUUID()
   });
   return new Promise((resolve, reject) => {
     chrome.identity.launchWebAuthFlow(
@@ -30,7 +30,6 @@ async function msSignInExtension() {
         }
         const hash = new URLSearchParams(new URL(redirect).hash.slice(1));
         if (hash.get("error")) return reject(new Error(hash.get("error_description") || hash.get("error")));
-        // Decode id_token for display info
         const idToken = hash.get("id_token") || "";
         let name = "", email = "";
         try {
