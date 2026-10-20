@@ -118,7 +118,66 @@ async function moveToLabel(token, ids, labelId, fetchImpl) {
   }
 }
 
-// Returns the folder/label name an existing filter routes this sender to, or null.
+// Returns senders that have more than one folder filter, grouped by domain.
+// Each entry: { domain, emails: [{email, filterId, folderName, labelId}] }
+export async function getDuplicateRules(token, fetchImpl = fetch) {
+  const { filters = [] } = await api(token, "/settings/filters", {}, fetchImpl);
+  const { labels = [] } = await api(token, "/labels", {}, fetchImpl);
+  const labelById = Object.fromEntries(labels.map((l) => [l.id, l.name]));
+  const systemIds = new Set(["TRASH", "INBOX", "UNREAD", "STARRED", "SPAM"]);
+
+  // Collect folder filters keyed by domain
+  const byDomain = new Map();
+  for (const f of filters) {
+    const from = String(f.criteria?.from || "").toLowerCase().trim();
+    if (!from) continue;
+    const labelId = f.action?.addLabelIds?.find((id) => !systemIds.has(id));
+    if (!labelId) continue;
+    const folderName = labelById[labelId];
+    if (!folderName) continue;
+    const domain = from.includes("@") ? from.split("@")[1] : from;
+    if (!byDomain.has(domain)) byDomain.set(domain, []);
+    byDomain.get(domain).push({ email: from, filterId: f.id, folderName, labelId });
+  }
+
+  return [...byDomain.entries()]
+    .filter(([, entries]) => entries.length > 1)
+    .map(([domain, entries]) => ({ domain, entries }));
+}
+
+// Merges duplicate folder rules for a domain into one target folder.
+// Deletes all existing folder filters for those emails, moves messages, recreates one filter.
+export async function mergeRules(token, domain, entries, targetFolderName, fetchImpl = fetch) {
+  const targetLabelId = await ensureLabel(token, targetFolderName, fetchImpl);
+
+  // Delete all existing filters for these entries
+  for (const { filterId } of entries) {
+    await api(token, `/settings/filters/${filterId}`, { method: "DELETE" }, fetchImpl).catch(() => {});
+  }
+
+  // Move all messages from old labels to target label, then recreate one filter per email
+  let moved = 0;
+  for (const { email, labelId: oldLabelId } of entries) {
+    const ids = await listMessageIds(token, email, fetchImpl);
+    if (ids.length) {
+      await moveToLabel(token, ids, targetLabelId, fetchImpl);
+      moved += ids.length;
+    }
+    // Recreate filter pointing to target
+    try {
+      await api(token, "/settings/filters", {
+        method: "POST",
+        body: { criteria: { from: email }, action: { addLabelIds: [targetLabelId], removeLabelIds: ["INBOX"] } }
+      }, fetchImpl);
+    } catch (error) {
+      if (!(error.status === 400 && /already exists/i.test(error.message))) throw error;
+    }
+  }
+
+  return { domain, targetFolderName, moved };
+}
+
+// Returns senders that have more than one folder filter, grouped by domain.
 // Falls back to fuzzy-matching an existing label name against the sender domain.
 export async function getExistingFolder(token, rawEmail, fetchImpl = fetch) {
   const email = normalizeEmail(rawEmail);

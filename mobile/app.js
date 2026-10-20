@@ -1,5 +1,5 @@
 import { CLIENT_ID } from "../config.js";
-import { applyRule, emptyFolder, trashInboxOlderThan, getExistingFolder } from "../gmail-rules.js?v=8";
+import { applyRule, emptyFolder, trashInboxOlderThan, getExistingFolder, getDuplicateRules, mergeRules } from "../gmail-rules.js?v=8";
 import { scanInbox, listSubjects } from "../gmail-scan.js?v=8";
 import * as msMail from "../ms-mail.js?v=8";
 import { cachedMsToken, finishMsSignIn, msConfigured, msSignOut, startMsSignIn } from "../ms-auth.js?v=8";
@@ -14,7 +14,7 @@ let tokenExpires = 0;
 let tokenClient = null;
 let senders = [];
 let provider = localStorage.getItem("provider") || "google";
-const googleApi = { scanInbox, listSubjects, applyRule, emptyFolder, trashInboxOlderThan, getExistingFolder };
+const googleApi = { scanInbox, listSubjects, applyRule, emptyFolder, trashInboxOlderThan, getExistingFolder, getDuplicateRules, mergeRules };
 
 const YAHOO_NOT_AVAILABLE = "Mail management isn't available for Yahoo Mail — Yahoo doesn't provide a public REST API for third-party apps.";
 
@@ -24,7 +24,9 @@ const yahooApi = {
   applyRule: () => Promise.reject(new Error(YAHOO_NOT_AVAILABLE)),
   emptyFolder: () => Promise.reject(new Error(YAHOO_NOT_AVAILABLE)),
   trashInboxOlderThan: () => Promise.reject(new Error(YAHOO_NOT_AVAILABLE)),
-  getExistingFolder: () => Promise.resolve(null)
+  getExistingFolder: () => Promise.resolve(null),
+  getDuplicateRules: () => Promise.resolve([]),
+  mergeRules: () => Promise.reject(new Error(YAHOO_NOT_AVAILABLE))
 };
 
 const api = () => {
@@ -289,6 +291,86 @@ async function scan() {
   }
 }
 
+async function showManageRules() {
+  const backdrop = document.createElement("div");
+  backdrop.className = "preview-backdrop";
+  const modal = document.createElement("div");
+  modal.className = "preview-modal";
+  modal.setAttribute("role", "dialog");
+  modal.setAttribute("aria-modal", "true");
+  const head = document.createElement("header");
+  const title = document.createElement("span");
+  title.textContent = "Manage Rules";
+  const close = document.createElement("button");
+  close.type = "button";
+  close.textContent = "\u2715";
+  close.setAttribute("aria-label", "Close");
+  head.append(title, close);
+  const body = document.createElement("div");
+  body.textContent = "Loading rules...";
+  modal.append(head, body);
+  backdrop.append(modal);
+  document.body.append(backdrop);
+
+  const dismiss = () => { backdrop.remove(); document.removeEventListener("keydown", onKey); };
+  const onKey = (e) => { if (e.key === "Escape") dismiss(); };
+  document.addEventListener("keydown", onKey);
+  close.addEventListener("click", dismiss);
+  backdrop.addEventListener("click", (e) => { if (e.target === backdrop) dismiss(); });
+
+  try {
+    const duplicates = await withToken((t) => api().getDuplicateRules(t));
+    if (!duplicates.length) {
+      body.textContent = "No duplicate rules found.";
+      return;
+    }
+    body.replaceChildren();
+    for (const { domain, entries } of duplicates) {
+      const group = document.createElement("div");
+      group.className = "rules-group";
+
+      const domainLabel = document.createElement("div");
+      domainLabel.className = "rules-domain";
+      domainLabel.textContent = domain;
+      group.append(domainLabel);
+
+      // List existing folders for this domain
+      const folderNames = [...new Set(entries.map((e) => e.folderName))];
+      const note = document.createElement("p");
+      note.className = "age-note";
+      note.textContent = `${entries.length} rules across ${folderNames.length} folders. Select one folder to merge into:`;
+      group.append(note);
+
+      const options = document.createElement("div");
+      options.className = "age-options";
+      for (const folderName of folderNames) {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.textContent = folderName;
+        btn.addEventListener("click", async () => {
+          if (!confirm(`Merge all "${domain}" rules into "${folderName}"?\n\nOther folders for this sender will be emptied and their rules deleted.`)) return;
+          options.querySelectorAll("button").forEach((b) => (b.disabled = true));
+          note.textContent = "Working...";
+          try {
+            const r = await withToken((t) => api().mergeRules(t, domain, entries, folderName));
+            note.textContent = `Done. ${r.moved.toLocaleString()} emails moved to "${folderName}".`;
+            note.style.color = "var(--green)";
+          } catch (error) {
+            note.textContent = error.message;
+            note.style.color = "var(--red)";
+            options.querySelectorAll("button").forEach((b) => (b.disabled = false));
+          }
+        });
+        options.append(btn);
+      }
+      group.append(options);
+      body.append(group);
+    }
+  } catch (error) {
+    body.textContent = error.message;
+  }
+}
+
 function wireEmpty(id, folder, label) {
   $(id).addEventListener("click", async (event) => {
     if (!confirm(`Permanently delete ALL emails in ${label}? This cannot be undone.`)) return;
@@ -337,6 +419,7 @@ $("#sign-out").addEventListener("click", () => {
 });
 
 $("#scan").addEventListener("click", scan);
+$("#manage-rules").addEventListener("click", showManageRules);
 $("#filter").addEventListener("input", render);
 wireEmpty("#empty-trash", "trash", "Trash");
 wireEmpty("#empty-spam", "spam", "Spam");

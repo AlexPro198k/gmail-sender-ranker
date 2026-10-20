@@ -181,6 +181,53 @@ export async function applyRule(token, action, rawEmail, fetchImpl = fetch, opti
   return { email, action, filterCreated, trashed };
 }
 
+// Returns senders with more than one folder rule, grouped by domain.
+export async function getDuplicateRules(token, fetchImpl = fetch) {
+  const rules = await graph(token, "/me/mailFolders/inbox/messageRules", {}, fetchImpl);
+  const byDomain = new Map();
+  for (const r of rules.value ?? []) {
+    if (!r.actions?.moveToFolder) continue;
+    for (const a of r.conditions?.fromAddresses ?? []) {
+      const email = String(a.emailAddress?.address || "").toLowerCase();
+      if (!email) continue;
+      const domain = email.split("@")[1] || email;
+      const folder = await graph(token, `/me/mailFolders/${r.actions.moveToFolder}?$select=id,displayName`, {}, fetchImpl).catch(() => null);
+      if (!folder) continue;
+      if (!byDomain.has(domain)) byDomain.set(domain, []);
+      byDomain.get(domain).push({ email, ruleId: r.id, ruleName: r.displayName, folderId: folder.id, folderName: folder.displayName });
+    }
+  }
+  return [...byDomain.entries()]
+    .filter(([, entries]) => entries.length > 1)
+    .map(([domain, entries]) => ({ domain, entries }));
+}
+
+// Merges duplicate folder rules for a domain into one target folder.
+export async function mergeRules(token, domain, entries, targetFolderName, fetchImpl = fetch) {
+  const targetFolderId = await ensureFolder(token, targetFolderName, fetchImpl);
+
+  // Delete all existing rules for these entries
+  for (const { ruleId } of entries) {
+    await graph(token, `/me/mailFolders/inbox/messageRules/${ruleId}`, { method: "DELETE" }, fetchImpl).catch(() => {});
+  }
+
+  // Move messages from each sender to target folder and recreate one rule per email
+  let moved = 0;
+  const conditions = { fromAddresses: entries.map((e) => ({ emailAddress: { address: e.email } })) };
+  const ruleName = `Sender Ranker: folder ${domain}`;
+  for (const { email } of entries) {
+    const ids = await senderMessageIds(token, email, fetchImpl);
+    if (ids.length) {
+      moved += await batchEach(token, ids, moveRequest(targetFolderId), fetchImpl);
+    }
+  }
+
+  // Create one combined rule for all emails in this domain
+  await createRule(token, ruleName, { conditions, actions: { moveToFolder: targetFolderId, stopProcessingRules: true } }, fetchImpl);
+
+  return { domain, targetFolderName, moved };
+}
+
 // Returns the folder name an existing Outlook rule routes this sender to, or null.
 // Falls back to fuzzy-matching an existing folder name against the sender domain.
 export async function getExistingFolder(token, rawEmail, fetchImpl = fetch) {
