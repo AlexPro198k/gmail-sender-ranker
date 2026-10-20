@@ -119,15 +119,31 @@ async function moveToLabel(token, ids, labelId, fetchImpl) {
 }
 
 // Returns the folder/label name an existing filter routes this sender to, or null.
+// Falls back to fuzzy-matching an existing label name against the sender domain.
 export async function getExistingFolder(token, rawEmail, fetchImpl = fetch) {
   const email = normalizeEmail(rawEmail);
+  const domain = email.split("@")[1];
+  const domainBase = domain.split(".")[0].toLowerCase(); // e.g. "amazon" from "amazon.com"
+
+  // 1. Check existing filters first
   const { filters = [] } = await api(token, "/settings/filters", {}, fetchImpl);
-  const match = filters.find((f) => String(f.criteria?.from || "").toLowerCase().includes(email));
-  if (!match) return null;
-  const labelId = match.action?.addLabelIds?.find((id) => ![ "TRASH", "INBOX", "UNREAD", "STARRED", "SPAM" ].includes(id));
-  if (!labelId) return null;
+  const match = filters.find((f) => {
+    const from = String(f.criteria?.from || "").toLowerCase().trim();
+    return from === email || from === domain || email.endsWith("@" + from) || from.endsWith("@" + domain);
+  });
+  if (match) {
+    const labelId = match.action?.addLabelIds?.find((id) => !["TRASH", "INBOX", "UNREAD", "STARRED", "SPAM"].includes(id));
+    if (labelId) {
+      const { labels = [] } = await api(token, "/labels", {}, fetchImpl);
+      const name = labels.find((l) => l.id === labelId)?.name;
+      if (name) return name;
+    }
+  }
+
+  // 2. Fallback: find a label whose name matches the sender domain base (e.g. "AMAZON" ~ "amazon.com")
   const { labels = [] } = await api(token, "/labels", {}, fetchImpl);
-  return labels.find((l) => l.id === labelId)?.name ?? null;
+  const fuzzy = labels.find((l) => l.id.startsWith("Label_") && l.name.toLowerCase().replace(/[^a-z0-9]/g, "") === domainBase.replace(/[^a-z0-9]/g, ""));
+  return fuzzy?.name ?? null;
 }
 
 export async function emptyFolder(token, folder, fetchImpl = fetch) {

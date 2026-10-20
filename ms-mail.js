@@ -182,16 +182,32 @@ export async function applyRule(token, action, rawEmail, fetchImpl = fetch, opti
 }
 
 // Returns the folder name an existing Outlook rule routes this sender to, or null.
+// Falls back to fuzzy-matching an existing folder name against the sender domain.
 export async function getExistingFolder(token, rawEmail, fetchImpl = fetch) {
   const email = normalizeEmail(rawEmail);
+  const domain = email.split("@")[1];
+  const domainBase = domain.split(".")[0].toLowerCase(); // e.g. "amazon" from "amazon.com"
+
+  // 1. Check existing rules first
   const rules = await graph(token, "/me/mailFolders/inbox/messageRules", {}, fetchImpl);
-  const match = (rules.value ?? []).find((r) =>
-    r.conditions?.fromAddresses?.some((a) => String(a.emailAddress?.address || "").toLowerCase() === email)
-    && r.actions?.moveToFolder
+  const match = (rules.value ?? []).find((r) => {
+    if (!r.actions?.moveToFolder) return false;
+    const addresses = r.conditions?.fromAddresses ?? [];
+    const domains = r.conditions?.senderContains ?? [];
+    return addresses.some((a) => String(a.emailAddress?.address || "").toLowerCase() === email)
+      || domains.some((d) => String(d).toLowerCase() === domain || email.endsWith("@" + String(d).toLowerCase()));
+  });
+  if (match) {
+    const folder = await graph(token, `/me/mailFolders/${match.actions.moveToFolder}?$select=displayName`, {}, fetchImpl).catch(() => null);
+    if (folder?.displayName) return folder.displayName;
+  }
+
+  // 2. Fallback: find a folder whose name matches the sender domain base
+  const folders = await graph(token, "/me/mailFolders?$select=displayName&$top=100", {}, fetchImpl);
+  const fuzzy = (folders.value ?? []).find((f) =>
+    f.displayName.toLowerCase().replace(/[^a-z0-9]/g, "") === domainBase.replace(/[^a-z0-9]/g, "")
   );
-  if (!match) return null;
-  const folder = await graph(token, `/me/mailFolders/${match.actions.moveToFolder}?$select=displayName`, {}, fetchImpl).catch(() => null);
-  return folder?.displayName ?? null;
+  return fuzzy?.displayName ?? null;
 }
 
 // Permanently deletes everything in Deleted Items or Junk Email.
