@@ -13,7 +13,6 @@ const statusEl = $("#status");
 (function initTheme() {
   const root = document.documentElement;
   const btn = document.getElementById("theme-toggle");
-  const saved = localStorage.getItem("theme");
   const apply = (theme) => {
     if (theme === "holonet") {
       root.setAttribute("data-theme", "holonet");
@@ -25,24 +24,12 @@ const statusEl = $("#status");
       btn.setAttribute("aria-label", "Switch to HOLONET theme");
     }
   };
-  apply(saved || "ios");
+  apply(localStorage.getItem("theme") || "ios");
   btn.addEventListener("click", () => {
     const next = root.getAttribute("data-theme") === "holonet" ? "ios" : "holonet";
     localStorage.setItem("theme", next);
     apply(next);
   });
-  // Sync button label on each apply
-  function apply(theme) {
-    if (theme === "holonet") {
-      root.setAttribute("data-theme", "holonet");
-      btn.textContent = "Default";
-      btn.setAttribute("aria-label", "Switch to default theme");
-    } else {
-      root.removeAttribute("data-theme");
-      btn.textContent = "HOLONET";
-      btn.setAttribute("aria-label", "Switch to HOLONET theme");
-    }
-  }
 })();
 
 let token = null;
@@ -122,14 +109,9 @@ function showApp(signedIn, userLabel = "") {
   $("#signin").hidden = signedIn;
   $("#app").hidden = !signedIn;
   $("#sign-out").hidden = !signedIn;
-  if (signedIn && userLabel) {
-    const h1 = document.querySelector("header h1");
-    h1.textContent = userLabel ? `Email Organizer · ${userLabel}` : "Email Organizer";
-  } else {
-    document.querySelector("header h1").textContent = "Email Organizer";
-  }
   $("#header-signin").hidden = signedIn;
-  // Disable mail-management buttons for Yahoo
+  const h1 = document.querySelector("header h1");
+  h1.textContent = signedIn && userLabel ? `Email Organizer \u00b7 ${userLabel}` : "Email Organizer";
   const isYahoo = provider === "yahoo";
   ["#scan", "#empty-trash", "#empty-spam", "#delete-inbox"].forEach((id) => {
     const el = $(id);
@@ -629,6 +611,7 @@ function resetSignIn() {
   $("#list").replaceChildren();
   $("#filter").hidden = true;
   showApp(false);
+  // Restore individual provider button visibility inside the header signin group
   $("#sign-in-ms").hidden = !msConfigured();
   $("#sign-in-yahoo").hidden = !yahooConfigured();
 }
@@ -684,9 +667,10 @@ $("#sign-in-yahoo").addEventListener("click", async () => {
 });
 
 (async () => {
-  showApp(false);
+  // Set individual provider button visibility before showApp
   $("#sign-in-ms").hidden = !msConfigured();
   $("#sign-in-yahoo").hidden = !yahooConfigured();
+  showApp(false);
   try {
     // Microsoft redirect return
     const msReturned = await finishMsSignIn();
