@@ -1,5 +1,5 @@
 import { CLIENT_ID } from "../config.js";
-import { applyRule, emptyFolder, trashInboxOlderThan } from "../gmail-rules.js?v=8";
+import { applyRule, emptyFolder, trashInboxOlderThan, getExistingFolder } from "../gmail-rules.js?v=8";
 import { scanInbox, listSubjects } from "../gmail-scan.js?v=8";
 import * as msMail from "../ms-mail.js?v=8";
 import { cachedMsToken, finishMsSignIn, msConfigured, msSignOut, startMsSignIn } from "../ms-auth.js?v=8";
@@ -14,7 +14,7 @@ let tokenExpires = 0;
 let tokenClient = null;
 let senders = [];
 let provider = localStorage.getItem("provider") || "google";
-const googleApi = { scanInbox, listSubjects, applyRule, emptyFolder, trashInboxOlderThan };
+const googleApi = { scanInbox, listSubjects, applyRule, emptyFolder, trashInboxOlderThan, getExistingFolder };
 
 const YAHOO_NOT_AVAILABLE = "Mail management isn't available for Yahoo Mail — Yahoo doesn't provide a public REST API for third-party apps.";
 
@@ -23,7 +23,8 @@ const yahooApi = {
   listSubjects: () => Promise.reject(new Error(YAHOO_NOT_AVAILABLE)),
   applyRule: () => Promise.reject(new Error(YAHOO_NOT_AVAILABLE)),
   emptyFolder: () => Promise.reject(new Error(YAHOO_NOT_AVAILABLE)),
-  trashInboxOlderThan: () => Promise.reject(new Error(YAHOO_NOT_AVAILABLE))
+  trashInboxOlderThan: () => Promise.reject(new Error(YAHOO_NOT_AVAILABLE)),
+  getExistingFolder: () => Promise.resolve(null)
 };
 
 const api = () => {
@@ -241,7 +242,8 @@ function render() {
 async function run(action, sender, buttons, result, item) {
   let folderName;
   if (action === "folder") {
-    folderName = prompt(`Folder name for ${sender.email}:`, sender.name.slice(0, 60))?.trim();
+    const suggested = await withToken((t) => api().getExistingFolder(t, sender.email)).catch(() => null);
+    folderName = prompt(`Folder name for ${sender.email}:`, suggested || sender.name.slice(0, 60))?.trim();
     if (!folderName) return;
   }
   const descriptions = {

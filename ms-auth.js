@@ -6,7 +6,10 @@ const SESSION_KEY = "msToken";
 const PKCE_KEY = "msPkce";
 
 const b64url = (bytes) => btoa(String.fromCharCode(...new Uint8Array(bytes))).replaceAll("+", "-").replaceAll("/", "_").replaceAll("=", "");
-const redirectUri = () => location.origin + location.pathname;
+const redirectUri = () => {
+  // Strip any query string or hash — must match exactly what is registered in Entra
+  return location.origin + location.pathname.replace(/\/+$/, "");
+};
 
 export const msConfigured = () => Boolean(MS_CLIENT_ID);
 
@@ -22,6 +25,8 @@ export function cachedMsToken() {
 // Authorization code flow with PKCE: redirects to Microsoft, and finishMsSignIn() runs on return.
 export async function startMsSignIn(loginHint) {
   if (!msConfigured()) throw new Error("Microsoft sign-in isn't configured yet: set MS_CLIENT_ID in config.js.");
+  const uri = redirectUri();
+  console.log("[ms-auth] redirect_uri being sent:", uri);
   const verifier = b64url(crypto.getRandomValues(new Uint8Array(32)));
   const challenge = b64url(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(verifier)));
   const state = b64url(crypto.getRandomValues(new Uint8Array(16)));

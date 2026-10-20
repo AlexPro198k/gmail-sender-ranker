@@ -118,7 +118,18 @@ async function moveToLabel(token, ids, labelId, fetchImpl) {
   }
 }
 
-// Permanent deletion needs the full https://mail.google.com/ scope.
+// Returns the folder/label name an existing filter routes this sender to, or null.
+export async function getExistingFolder(token, rawEmail, fetchImpl = fetch) {
+  const email = normalizeEmail(rawEmail);
+  const { filters = [] } = await api(token, "/settings/filters", {}, fetchImpl);
+  const match = filters.find((f) => String(f.criteria?.from || "").toLowerCase().includes(email));
+  if (!match) return null;
+  const labelId = match.action?.addLabelIds?.find((id) => ![ "TRASH", "INBOX", "UNREAD", "STARRED", "SPAM" ].includes(id));
+  if (!labelId) return null;
+  const { labels = [] } = await api(token, "/labels", {}, fetchImpl);
+  return labels.find((l) => l.id === labelId)?.name ?? null;
+}
+
 export async function emptyFolder(token, folder, fetchImpl = fetch) {
   const query = { trash: "in:trash", spam: "in:spam" }[folder];
   if (!query) throw new Error("Unknown folder.");

@@ -181,6 +181,19 @@ export async function applyRule(token, action, rawEmail, fetchImpl = fetch, opti
   return { email, action, filterCreated, trashed };
 }
 
+// Returns the folder name an existing Outlook rule routes this sender to, or null.
+export async function getExistingFolder(token, rawEmail, fetchImpl = fetch) {
+  const email = normalizeEmail(rawEmail);
+  const rules = await graph(token, "/me/mailFolders/inbox/messageRules", {}, fetchImpl);
+  const match = (rules.value ?? []).find((r) =>
+    r.conditions?.fromAddresses?.some((a) => String(a.emailAddress?.address || "").toLowerCase() === email)
+    && r.actions?.moveToFolder
+  );
+  if (!match) return null;
+  const folder = await graph(token, `/me/mailFolders/${match.actions.moveToFolder}?$select=displayName`, {}, fetchImpl).catch(() => null);
+  return folder?.displayName ?? null;
+}
+
 // Permanently deletes everything in Deleted Items or Junk Email.
 export async function emptyFolder(token, folder, fetchImpl = fetch) {
   const folderName = { trash: "deleteditems", spam: "junkemail" }[folder];
