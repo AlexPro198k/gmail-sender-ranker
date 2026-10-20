@@ -230,19 +230,21 @@ function render() {
     const item = document.createElement("li");
     const top = document.createElement("div");
     top.className = "top";
+    const senderInfo = document.createElement("div");
+    senderInfo.className = "sender-info";
     const name = document.createElement("div");
     name.className = "name";
     name.textContent = sender.name;
     const email = document.createElement("span");
     email.className = "email";
     email.textContent = sender.email;
-    name.append(email);
+    senderInfo.append(name, email);
     const count = document.createElement("button");
     count.className = "count count-btn";
-    count.textContent = `${sender.count.toLocaleString()} \uD83D\uDC41`;
+    count.textContent = `${sender.count.toLocaleString()} • view`;
     count.setAttribute("aria-label", `Preview subjects for ${sender.name}`);
     count.addEventListener("click", () => showPreview(sender));
-    top.append(name, count);
+    top.append(senderInfo, count);
 
     const result = document.createElement("div");
     result.className = "result";

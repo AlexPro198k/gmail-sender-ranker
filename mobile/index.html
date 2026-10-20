@@ -19,20 +19,24 @@
   </header>
   <main>
     <section id="signin">
-      <p>Rank your Inbox senders and manage them with one tap.</p>
-      <button id="sign-in" class="primary">Sign in with Google</button>
-      <button id="sign-in-ms" hidden>Sign in with Microsoft (Outlook / Hotmail / Live)</button>
-      <button id="sign-in-yahoo" hidden>Sign in with Yahoo Mail</button>
+      <div class="signin-icon">✉️</div>
+      <h2>Sender Ranker</h2>
+      <p>Rank your inbox senders and manage them with one tap.</p>
+      <div class="signin-btns">
+        <button id="sign-in" class="primary">Sign in with Google</button>
+        <button id="sign-in-ms" hidden>Sign in with Microsoft</button>
+        <button id="sign-in-yahoo" hidden>Sign in with Yahoo</button>
+      </div>
     </section>
     <section id="app" hidden>
       <div class="toolbar">
-        <button id="scan" class="primary">📥 Scan Inbox</button>
-        <button id="manage-rules">🗂 Manage Rules</button>
-        <button id="auto-rule">✨ Auto Rule</button>
-        <div class="toolbar-divider"></div>
-        <button id="empty-trash" class="danger">🗑 Empty Trash</button>
-        <button id="empty-spam" class="danger">🚫 Delete Spam</button>
-        <button id="delete-inbox" class="danger">⏳ Delete Old Inbox</button>
+        <button id="scan" class="primary">Scan Inbox</button>
+        <button id="manage-rules">Manage Rules</button>
+        <button id="auto-rule">✦ Auto Rule</button>
+        <div class="toolbar-divider">Danger Zone</div>
+        <button id="empty-trash" class="danger">Empty Trash</button>
+        <button id="empty-spam" class="danger">Delete Spam</button>
+        <button id="delete-inbox" class="danger">Delete Old Inbox</button>
       </div>
       <p id="status" role="status"></p>
       <input id="filter" type="search" placeholder="Filter senders" hidden>
