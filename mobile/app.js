@@ -371,6 +371,162 @@ async function showManageRules() {
   }
 }
 
+// Splits a display name or local-part into words: camelCase, dots, underscores, dashes, spaces.
+function tokenize(str) {
+  return str
+    .replace(/([a-z])([A-Z])/g, "$1 $2")
+    .split(/[\s._\-@+]+/)
+    .map((w) => w.toLowerCase())
+    .filter(Boolean);
+}
+
+const PROMO_TOKENS = new Set(["noreply", "no-reply", "donotreply", "newsletter", "news",
+  "promo", "promotions", "deals", "offer", "offers", "marketing", "info", "hello",
+  "support", "notifications", "notify", "alert", "alerts", "updates", "mailer",
+  "bounce", "reply", "auto", "automated", "system", "service", "billing"]);
+
+function isPromo(sender) {
+  const localPart = sender.email.split("@")[0];
+  return tokenize(localPart).concat(tokenize(sender.name)).some((t) => PROMO_TOKENS.has(t));
+}
+
+function buildAutoRuleSuggestions(senders) {
+  const byBase = new Map();
+  for (const s of senders) {
+    const domain = s.email.split("@")[1] || "";
+    const base = domain.split(".")[0].toLowerCase();
+    if (!base) continue;
+    if (!byBase.has(base)) byBase.set(base, []);
+    byBase.get(base).push(s);
+  }
+  const suggestions = [];
+  for (const [base, group] of byBase) {
+    const promoCount = group.filter(isPromo).length;
+    if (group.length < 2 && promoCount === 0) continue;
+    const allPromo = promoCount === group.length;
+    const action = allPromo ? "block" : "folder";
+    const folderName = base.charAt(0).toUpperCase() + base.slice(1);
+    const totalCount = group.reduce((n, s) => n + s.count, 0);
+    suggestions.push({ base, group, action, folderName, totalCount });
+  }
+  return suggestions.sort((a, b) => b.totalCount - a.totalCount);
+}
+
+async function showAutoRule() {
+  if (!senders.length) { setStatus("Scan Inbox first to generate suggestions.", true); return; }
+
+  const suggestions = buildAutoRuleSuggestions(senders);
+
+  const backdrop = document.createElement("div");
+  backdrop.className = "preview-backdrop";
+  const modal = document.createElement("div");
+  modal.className = "preview-modal";
+  modal.setAttribute("role", "dialog");
+  modal.setAttribute("aria-modal", "true");
+  const head = document.createElement("header");
+  const title = document.createElement("span");
+  title.textContent = "Auto Rule Suggestions";
+  const close = document.createElement("button");
+  close.type = "button";
+  close.textContent = "\u2715";
+  close.setAttribute("aria-label", "Close");
+  head.append(title, close);
+  const body = document.createElement("div");
+  modal.append(head, body);
+  backdrop.append(modal);
+  document.body.append(backdrop);
+
+  const dismiss = () => { backdrop.remove(); document.removeEventListener("keydown", onKey); };
+  const onKey = (e) => { if (e.key === "Escape") dismiss(); };
+  document.addEventListener("keydown", onKey);
+  close.addEventListener("click", dismiss);
+  backdrop.addEventListener("click", (e) => { if (e.target === backdrop) dismiss(); });
+
+  if (!suggestions.length) { body.textContent = "No automatic rule suggestions found."; return; }
+
+  let remaining = suggestions.length;
+  const counter = document.createElement("p");
+  counter.className = "age-note";
+  const updateCounter = () => {
+    counter.textContent = remaining > 0
+      ? `${remaining} suggestion${remaining !== 1 ? "s" : ""} remaining.`
+      : "All suggestions reviewed.";
+  };
+  updateCounter();
+  body.append(counter);
+
+  for (const { base, group, action, folderName, totalCount } of suggestions) {
+    const item = document.createElement("div");
+    item.className = "auto-rule-item";
+
+    const domainLabel = document.createElement("div");
+    domainLabel.className = "rules-domain";
+    domainLabel.textContent = base;
+
+    const emailList = document.createElement("div");
+    emailList.className = "auto-rule-emails";
+    emailList.textContent = group.map((s) => s.email).join(", ");
+
+    const actionBadge = document.createElement("div");
+    actionBadge.className = `auto-rule-action auto-rule-action--${action}`;
+    actionBadge.textContent = action === "block"
+      ? `Block \u00b7 ${totalCount.toLocaleString()} emails`
+      : `Folder \u201c${folderName}\u201d \u00b7 ${totalCount.toLocaleString()} emails`;
+
+    const btns = document.createElement("div");
+    btns.className = "auto-rule-btns";
+    const applyBtn = document.createElement("button");
+    applyBtn.type = "button";
+    applyBtn.className = "auto-rule-apply";
+    applyBtn.textContent = "Apply";
+    const rejectBtn = document.createElement("button");
+    rejectBtn.type = "button";
+    rejectBtn.className = "auto-rule-reject";
+    rejectBtn.textContent = "Reject";
+    const resultEl = document.createElement("div");
+    resultEl.className = "result";
+
+    const finish = (accepted) => {
+      applyBtn.disabled = true;
+      rejectBtn.disabled = true;
+      item.classList.add(accepted ? "auto-rule-done" : "auto-rule-rejected");
+      remaining--;
+      updateCounter();
+    };
+
+    rejectBtn.addEventListener("click", () => finish(false));
+
+    applyBtn.addEventListener("click", async () => {
+      applyBtn.disabled = true;
+      rejectBtn.disabled = true;
+      resultEl.className = "result";
+      resultEl.textContent = "Working...";
+      try {
+        let totalMoved = 0;
+        for (const sender of group) {
+          const r = await withToken((t) =>
+            api().applyRule(t, action, sender.email, fetch, action === "folder" ? { folderName } : {})
+          );
+          totalMoved += r.moved ?? r.trashed ?? 0;
+          senders = senders.filter((s) => s !== sender);
+        }
+        render();
+        resultEl.textContent = `Done. ${totalMoved.toLocaleString()} emails moved.`;
+        finish(true);
+      } catch (error) {
+        resultEl.className = "result error";
+        resultEl.textContent = error.message;
+        applyBtn.disabled = false;
+        rejectBtn.disabled = false;
+      }
+    });
+
+    btns.append(applyBtn, rejectBtn);
+    item.append(domainLabel, emailList, actionBadge, btns, resultEl);
+    body.append(item);
+  }
+}
+
 function wireEmpty(id, folder, label) {
   $(id).addEventListener("click", async (event) => {
     if (!confirm(`Permanently delete ALL emails in ${label}? This cannot be undone.`)) return;
@@ -420,6 +576,7 @@ $("#sign-out").addEventListener("click", () => {
 
 $("#scan").addEventListener("click", scan);
 $("#manage-rules").addEventListener("click", showManageRules);
+$("#auto-rule").addEventListener("click", showAutoRule);
 $("#filter").addEventListener("input", render);
 wireEmpty("#empty-trash", "trash", "Trash");
 wireEmpty("#empty-spam", "spam", "Spam");
