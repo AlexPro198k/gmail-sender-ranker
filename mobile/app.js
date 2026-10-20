@@ -17,8 +17,8 @@ const statusEl = $("#status");
   const apply = (theme) => {
     if (theme === "holonet") {
       root.setAttribute("data-theme", "holonet");
-      btn.textContent = "iOS";
-      btn.setAttribute("aria-label", "Switch to iOS theme");
+      btn.textContent = "Default";
+      btn.setAttribute("aria-label", "Switch to default theme");
     } else {
       root.removeAttribute("data-theme");
       btn.textContent = "HOLONET";
@@ -31,6 +31,18 @@ const statusEl = $("#status");
     localStorage.setItem("theme", next);
     apply(next);
   });
+  // Sync button label on each apply
+  function apply(theme) {
+    if (theme === "holonet") {
+      root.setAttribute("data-theme", "holonet");
+      btn.textContent = "Default";
+      btn.setAttribute("aria-label", "Switch to default theme");
+    } else {
+      root.removeAttribute("data-theme");
+      btn.textContent = "HOLONET";
+      btn.setAttribute("aria-label", "Switch to HOLONET theme");
+    }
+  }
 })();
 
 let token = null;
@@ -112,10 +124,11 @@ function showApp(signedIn, userLabel = "") {
   $("#sign-out").hidden = !signedIn;
   if (signedIn && userLabel) {
     const h1 = document.querySelector("header h1");
-    h1.textContent = userLabel ? `Sender Ranker · ${userLabel}` : "Sender Ranker";
+    h1.textContent = userLabel ? `Email Organizer · ${userLabel}` : "Email Organizer";
   } else {
-    document.querySelector("header h1").textContent = "Sender Ranker";
+    document.querySelector("header h1").textContent = "Email Organizer";
   }
+  $("#header-signin").hidden = signedIn;
   // Disable mail-management buttons for Yahoo
   const isYahoo = provider === "yahoo";
   ["#scan", "#empty-trash", "#empty-spam", "#delete-inbox"].forEach((id) => {

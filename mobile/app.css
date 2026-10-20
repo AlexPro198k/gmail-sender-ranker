@@ -5,50 +5,54 @@
   color-scheme: dark;
 
   /* Surfaces */
-  --bg:        #0d0d0f;
-  --surface:   #18181b;
-  --surface2:  #222226;
-  --surface3:  #2a2a2f;
+  --bg:        #0a0a0c;
+  --surface:   #141416;
+  --surface2:  #1e1e22;
+  --surface3:  #28282e;
 
   /* Text */
-  --text:      #f4f4f5;
-  --text2:     #a1a1aa;
-  --text3:     #52525b;
+  --text:      #f0f0f2;
+  --text2:     #8e8e99;
+  --text3:     #44444d;
 
-  /* Accent — electric violet-blue gradient */
-  --accent:        #7c3aed;
-  --accent2:       #4f46e5;
-  --accent-text:   #fff;
-  --accent-glow:   rgba(124,58,237,.35);
-  --accent-soft:   rgba(124,58,237,.12);
+  /* Silver glass button */
+  --btn-bg:        rgba(200,200,210,.08);
+  --btn-border:    rgba(220,220,230,.18);
+  --btn-shadow:    0 2px 8px rgba(0,0,0,.55), 0 1px 2px rgba(0,0,0,.8), inset 0 1px 0 rgba(255,255,255,.07);
+  --btn-text:      #d4d4dc;
+
+  /* Accent (scan / primary only) */
+  --accent:        #c8c8d8;
+  --accent2:       #a0a0b8;
+  --accent-text:   #0a0a0c;
+  --accent-glow:   rgba(200,200,220,.2);
+  --accent-soft:   rgba(200,200,220,.08);
 
   /* Semantic */
   --red:       #f43f5e;
-  --red-soft:  rgba(244,63,94,.12);
+  --red-soft:  rgba(244,63,94,.1);
   --green:     #10b981;
-  --green-soft:rgba(16,185,129,.12);
-  --amber:     #f59e0b;
 
   /* Structure */
-  --border:    rgba(255,255,255,.07);
-  --border2:   rgba(255,255,255,.12);
-  --shadow:    0 1px 3px rgba(0,0,0,.4), 0 4px 16px rgba(0,0,0,.3);
-  --shadow-lg: 0 8px 32px rgba(0,0,0,.6), 0 2px 8px rgba(0,0,0,.4);
+  --border:    rgba(255,255,255,.06);
+  --border2:   rgba(255,255,255,.11);
+  --shadow:    0 1px 4px rgba(0,0,0,.5), 0 4px 16px rgba(0,0,0,.35);
+  --shadow-lg: 0 8px 40px rgba(0,0,0,.7), 0 2px 8px rgba(0,0,0,.5);
 
   /* Shape */
   --r-sm:  8px;
-  --r-md:  14px;
-  --r-lg:  20px;
-  --r-xl:  28px;
+  --r-md:  12px;
+  --r-lg:  18px;
+  --r-xl:  26px;
   --r-pill:999px;
 
   /* Typography */
   --font: -apple-system, "SF Pro Display", "Inter", system-ui, sans-serif;
 
-  /* HOLONET passthrough (unused in default) */
+  /* HOLONET passthrough */
   --scanlines: none;
   --glow-text: none;
-  --header-bg: rgba(13,13,15,.85);
+  --header-bg: rgba(10,10,12,.88);
 }
 
 /* ══════════════════════════════════════════
@@ -136,8 +140,8 @@ body::after {
 header {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 16px 20px 14px;
+  gap: 8px;
+  padding: 12px 16px;
   position: sticky;
   top: 0;
   z-index: 100;
@@ -150,13 +154,10 @@ header {
 h1 {
   flex: 1;
   margin: 0;
-  font-size: 18px;
+  font-size: 17px;
   font-weight: 700;
-  letter-spacing: -.4px;
-  background: linear-gradient(135deg, var(--text) 0%, var(--text2) 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
+  letter-spacing: -.3px;
+  color: var(--text);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -167,57 +168,48 @@ h1 {
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
-  text-shadow: none;
-  letter-spacing: .05em;
+  letter-spacing: .04em;
 }
-[data-theme="holonet"] h1::before {
-  content: "▶ ";
-  font-size: 10px;
-}
+[data-theme="holonet"] h1::before { content: "\25B6 "; font-size: 9px; }
 
-/* ── Theme toggle pill ── */
-#theme-toggle {
-  flex-shrink: 0;
+/* ── Header sign-in group ── */
+#header-signin {
   display: flex;
+  gap: 6px;
   align-items: center;
-  gap: 5px;
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: .06em;
-  text-transform: uppercase;
-  color: var(--text2);
-  background: var(--surface2);
-  border: 1px solid var(--border2);
-  border-radius: var(--r-pill);
-  padding: 5px 12px;
-  min-height: unset;
-  white-space: nowrap;
-  transition: color .2s, border-color .2s, background .2s;
 }
-#theme-toggle::before { content: "◐"; font-size: 12px; }
-#theme-toggle:active { opacity: .7; }
 
-[data-theme="holonet"] #theme-toggle {
-  color: var(--accent);
-  border-color: var(--border2);
-  box-shadow: 0 0 8px var(--accent-glow);
-}
-[data-theme="holonet"] #theme-toggle::before { content: "◈"; }
-
-/* ── Sign out ── */
+/* All header buttons: sign-in, theme-toggle, sign-out share the same silver glass style */
+#header-signin button,
+#theme-toggle,
 #sign-out {
   flex-shrink: 0;
-  font-size: 14px;
-  font-weight: 500;
-  color: var(--text2);
-  background: none;
-  border: none;
-  padding: 6px 2px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: .02em;
+  color: var(--btn-text);
+  background: var(--btn-bg);
+  border: 1px solid var(--btn-border);
+  border-radius: var(--r-pill);
+  padding: 6px 14px;
   min-height: unset;
-  border-radius: 0;
   white-space: nowrap;
+  box-shadow: var(--btn-shadow);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  transition: background .15s, border-color .15s;
 }
-#sign-out:active { color: var(--red); opacity: 1; }
+#header-signin button:active,
+#theme-toggle:active,
+#sign-out:active { background: rgba(220,220,230,.14); opacity: 1; }
+
+[data-theme="holonet"] #header-signin button,
+[data-theme="holonet"] #theme-toggle,
+[data-theme="holonet"] #sign-out {
+  color: var(--accent);
+  border-color: var(--border2);
+  box-shadow: 0 0 8px var(--accent-glow), 0 2px 8px rgba(0,0,0,.6), inset 0 1px 0 rgba(0,212,255,.08);
+}
 
 /* ══════════════════════════════════════════
    MAIN LAYOUT
@@ -231,56 +223,18 @@ main { padding: 0 16px 80px; }
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 12px;
-  padding: 72px 0 0;
+  padding: 60px 20px 0;
   text-align: center;
 }
-
-.signin-icon {
-  width: 80px;
-  height: 80px;
-  border-radius: 24px;
-  background: linear-gradient(135deg, var(--accent) 0%, var(--accent2) 100%);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 36px;
-  margin-bottom: 8px;
-  box-shadow: 0 8px 32px var(--accent-glow);
-}
-
-[data-theme="holonet"] .signin-icon {
-  background: transparent;
-  border: 2px solid var(--accent);
-  box-shadow: 0 0 24px var(--accent-glow), inset 0 0 24px rgba(0,212,255,.05);
-  font-size: 28px;
-}
-
-#signin h2 {
-  margin: 0;
-  font-size: 24px;
-  font-weight: 700;
-  letter-spacing: -.5px;
-}
-
 #signin p {
-  font-size: 14px;
+  font-size: 15px;
   color: var(--text2);
-  max-width: 280px;
-  margin: 0 0 16px;
   line-height: 1.6;
-}
-
-.signin-btns {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  width: 100%;
-  max-width: 340px;
+  max-width: 280px;
 }
 
 /* ══════════════════════════════════════════
-   BUTTONS — base
+   BUTTONS — base (silver glass)
    ══════════════════════════════════════════ */
 button {
   font: inherit;
@@ -288,85 +242,63 @@ button {
   align-items: center;
   justify-content: center;
   gap: 7px;
-  color: var(--text);
-  background: var(--surface2);
-  border: 1px solid var(--border);
+  color: var(--btn-text);
+  background: var(--btn-bg);
+  border: 1px solid var(--btn-border);
   border-radius: var(--r-md);
   padding: 12px 18px;
   min-height: 46px;
   cursor: pointer;
-  transition: background .15s, border-color .15s, opacity .15s, box-shadow .15s;
+  box-shadow: var(--btn-shadow);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  transition: background .15s, border-color .15s, opacity .15s;
   -webkit-user-select: none;
   user-select: none;
   font-size: 14px;
   font-weight: 500;
   white-space: nowrap;
 }
-button:active { opacity: .65; }
-button:disabled { opacity: .25; cursor: default; }
+button:active { background: rgba(220,220,230,.14); opacity: 1; }
+button:disabled { opacity: .22; cursor: default; }
 
-/* Primary */
+/* Primary — slightly brighter silver for Scan Inbox */
 button.primary {
-  background: linear-gradient(135deg, var(--accent) 0%, var(--accent2) 100%);
-  color: var(--accent-text);
-  border-color: transparent;
-  font-weight: 600;
+  background: rgba(220,220,230,.13);
+  border-color: rgba(230,230,240,.28);
+  color: #e8e8f0;
+  font-weight: 700;
   font-size: 15px;
-  box-shadow: 0 4px 16px var(--accent-glow);
+  box-shadow: 0 2px 12px rgba(0,0,0,.6), 0 1px 3px rgba(0,0,0,.9), inset 0 1px 0 rgba(255,255,255,.12);
 }
-button.primary:active {
-  opacity: .85;
-  box-shadow: 0 2px 8px var(--accent-glow);
-}
-
-[data-theme="holonet"] button.primary {
-  background: transparent;
-  color: var(--accent);
-  border-color: var(--accent);
-  box-shadow: 0 0 16px var(--accent-glow), inset 0 0 16px rgba(0,212,255,.04);
-  text-shadow: var(--glow-text);
-}
-[data-theme="holonet"] button.primary:active {
-  background: rgba(0,212,255,.08);
-  box-shadow: 0 0 28px var(--accent-glow);
-  opacity: 1;
-}
+button.primary:active { background: rgba(230,230,240,.2); opacity: 1; }
 
 /* Danger */
-button.danger {
-  color: var(--red);
-  background: var(--surface2);
-  border-color: var(--border);
-}
+button.danger { color: var(--red); }
 button.danger:active { background: var(--red-soft); opacity: 1; }
 
 [data-theme="holonet"] button {
-  border-color: var(--border);
+  color: var(--accent);
+  background: rgba(0,212,255,.05);
+  border-color: rgba(0,212,255,.2);
+  box-shadow: 0 0 8px rgba(0,212,255,.08), 0 2px 8px rgba(0,0,0,.7), inset 0 1px 0 rgba(0,212,255,.06);
   letter-spacing: .04em;
   font-size: 12px;
   text-transform: uppercase;
 }
+[data-theme="holonet"] button.primary {
+  background: rgba(0,212,255,.08);
+  border-color: rgba(0,212,255,.4);
+  box-shadow: 0 0 16px rgba(0,212,255,.2), 0 2px 8px rgba(0,0,0,.8), inset 0 1px 0 rgba(0,212,255,.1);
+  text-shadow: var(--glow-text);
+}
+[data-theme="holonet"] button.primary:active {
+  background: rgba(0,212,255,.14);
+  opacity: 1;
+}
 [data-theme="holonet"] button.danger {
-  border-color: rgba(255,77,26,.3);
-  box-shadow: 0 0 8px rgba(255,77,26,.1);
-}
-
-/* ══════════════════════════════════════════
-   SIGN-IN BUTTONS
-   ══════════════════════════════════════════ */
-#sign-in {
-  width: 100%;
-  min-height: 52px;
-  font-size: 16px;
-  border-radius: var(--r-lg);
-}
-#sign-in-ms, #sign-in-yahoo {
-  width: 100%;
-  min-height: 48px;
-  border-radius: var(--r-lg);
-  background: var(--surface);
-  border-color: var(--border2);
-  font-size: 14px;
+  color: var(--red);
+  border-color: rgba(255,77,26,.25);
 }
 
 /* ══════════════════════════════════════════
