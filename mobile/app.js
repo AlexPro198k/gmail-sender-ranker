@@ -66,17 +66,27 @@ function setStatus(message, isError = false) {
 function getToken() {
   if (token && Date.now() < tokenExpires - 60_000) return Promise.resolve(token);
   return new Promise((resolve, reject) => {
-    if (!window.google?.accounts?.oauth2) return reject(new Error("Google sign-in is still loading. Try again."));
-    tokenClient ??= google.accounts.oauth2.initTokenClient({ client_id: CLIENT_ID, scope: SCOPE, callback: () => {} });
-    tokenClient.callback = (response) => {
-      if (response.error || !response.access_token) return reject(new Error(response.error_description || response.error || "Sign-in failed."));
-      token = response.access_token;
-      tokenExpires = Date.now() + Number(response.expires_in || 3600) * 1000;
-      localStorage.setItem("signedIn", "1");
-      resolve(token);
+    const init = () => {
+      if (!window.google?.accounts?.oauth2) return reject(new Error("Google sign-in failed to load. Please refresh the page."));
+      tokenClient ??= google.accounts.oauth2.initTokenClient({ client_id: CLIENT_ID, scope: SCOPE, callback: () => {} });
+      tokenClient.callback = (response) => {
+        if (response.error || !response.access_token) return reject(new Error(response.error_description || response.error || "Sign-in failed."));
+        token = response.access_token;
+        tokenExpires = Date.now() + Number(response.expires_in || 3600) * 1000;
+        localStorage.setItem("signedIn", "1");
+        resolve(token);
+      };
+      tokenClient.error_callback = (error) => reject(new Error(error.message || "Sign-in was cancelled."));
+      tokenClient.requestAccessToken({ prompt: localStorage.getItem("signedIn") ? "" : "consent" });
     };
-    tokenClient.error_callback = (error) => reject(new Error(error.message || "Sign-in was cancelled."));
-    tokenClient.requestAccessToken({ prompt: localStorage.getItem("signedIn") ? "" : "consent" });
+    // GSI script loads async — wait up to 10s for it
+    if (window.google?.accounts?.oauth2) { init(); return; }
+    let waited = 0;
+    const poll = setInterval(() => {
+      waited += 100;
+      if (window.google?.accounts?.oauth2) { clearInterval(poll); init(); }
+      else if (waited >= 10_000) { clearInterval(poll); reject(new Error("Google sign-in timed out loading. Please refresh.")); }
+    }, 100);
   });
 }
 
@@ -624,7 +634,7 @@ $("#sign-in").addEventListener("click", async () => {
     showApp(true);
     setStatus("Tap Scan Inbox to begin.");
   } catch (error) {
-    alert(error.message);
+    setStatus(error.message, true);
   }
 });
 
@@ -636,6 +646,17 @@ $("#sign-out").addEventListener("click", () => {
   resetSignIn();
 });
 
+$("#sign-in-ms").addEventListener("click", () => {
+  localStorage.setItem("provider", "microsoft");
+  startMsSignIn().catch((error) => setStatus(error.message, true));
+  // startMsSignIn redirects the page — no await, no throw handling needed
+});
+
+$("#sign-in-yahoo").addEventListener("click", () => {
+  localStorage.setItem("provider", "yahoo");
+  startYahooSignIn().catch((error) => setStatus(error.message, true));
+});
+
 $("#scan").addEventListener("click", scan);
 $("#manage-rules").addEventListener("click", showManageRules);
 $("#auto-rule").addEventListener("click", showAutoRule);
@@ -645,26 +666,6 @@ wireEmpty("#empty-spam", "spam", "Spam");
 $("#delete-inbox").addEventListener("click", () =>
   showDeleteInbox((months) => withToken((t) => api().trashInboxOlderThan(t, months)), setStatus)
 );
-
-$("#sign-in-ms").hidden = !msConfigured();
-$("#sign-in-ms").addEventListener("click", async () => {
-  try {
-    localStorage.setItem("provider", "microsoft");
-    await startMsSignIn();
-  } catch (error) {
-    alert(error.message);
-  }
-});
-
-$("#sign-in-yahoo").hidden = !yahooConfigured();
-$("#sign-in-yahoo").addEventListener("click", async () => {
-  try {
-    localStorage.setItem("provider", "yahoo");
-    await startYahooSignIn();
-  } catch (error) {
-    alert(error.message);
-  }
-});
 
 (async () => {
   // Set individual provider button visibility before showApp
