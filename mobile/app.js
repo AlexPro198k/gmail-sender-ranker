@@ -428,26 +428,60 @@ function isPromo(sender) {
   return tokenize(localPart).concat(tokenize(sender.name)).some((t) => PROMO_TOKENS.has(t));
 }
 
+// Subdomain prefixes that carry no brand meaning — strip these to find the real brand
+const SUBDOMAIN_NOISE = new Set([
+  "mail", "email", "emailff", "e", "em", "smtp", "send", "sender", "mailer",
+  "notifications", "notification", "notify", "alerts", "alert", "updates", "update",
+  "info", "news", "newsletter", "promo", "promotions", "offers", "deals", "marketing",
+  "noreply", "no-reply", "donotreply", "bounce", "reply", "auto", "automated",
+  "members", "member", "accounts", "account", "billing", "support", "service",
+  "system", "online", "web", "app", "api", "cdn", "static", "go", "click", "track",
+  "links", "link", "mg", "sg", "em", "rs", "cs"
+]);
+
+// Extract the meaningful brand segment from a full domain.
+// e.g. "emailff.att-mail.com" -> "att-mail"
+//      "notifications.creditkarma.com" -> "creditkarma"
+//      "members.ebay.com" -> "ebay"
+//      "att.com" -> "att"
+function brandFromDomain(domain) {
+  const parts = domain.toLowerCase().split(".");
+  // Drop TLD(s): remove last part, and also second-to-last if it's a known SLD (co, com, net, org, gov, edu)
+  const knownSld = new Set(["co", "com", "net", "org", "gov", "edu", "ac"]);
+  let meaningful = parts.slice(0, -1); // drop TLD
+  if (meaningful.length > 1 && knownSld.has(meaningful[meaningful.length - 1])) {
+    meaningful = meaningful.slice(0, -1); // drop e.g. "com" from "att-mail.com"
+  }
+  // Strip leading noise subdomains, keep the last remaining segment as the brand
+  while (meaningful.length > 1 && SUBDOMAIN_NOISE.has(meaningful[0])) {
+    meaningful = meaningful.slice(1);
+  }
+  const brand = meaningful[meaningful.length - 1] || parts[0];
+  // "att-mail" / "ebay-email" -> "att" / "ebay"
+  const stripped = brand.replace(/[-_](mail|email|emails|messaging|notify|alerts?)$/, "");
+  return stripped.length >= 3 ? stripped : brand;
+}
+
 function buildAutoRuleSuggestions(list) {
-  const byBase = new Map();
+  const byBrand = new Map(); // brand -> { senders, existingFolder }
   for (const s of list) {
     const domain = s.email.split("@")[1] || "";
-    const base = domain.split(".")[0].toLowerCase();
+    const brand = brandFromDomain(domain);
     // Skip: too short (< 4 chars) or a known email provider
-    if (base.length < 4 || EMAIL_PROVIDERS.has(base)) continue;
-    if (!byBase.has(base)) byBase.set(base, []);
-    byBase.get(base).push(s);
+    if (brand.length < 4 || EMAIL_PROVIDERS.has(brand)) continue;
+    if (!byBrand.has(brand)) byBrand.set(brand, []);
+    byBrand.get(brand).push(s);
   }
   const suggestions = [];
-  for (const [base, group] of byBase) {
+  for (const [brand, group] of byBrand) {
     const promoCount = group.filter(isPromo).length;
-    // Suggest if: multiple senders from same domain base, OR any single promo sender
     if (group.length < 2 && promoCount === 0) continue;
     const allPromo = promoCount === group.length;
     const action = allPromo ? "block" : "folder";
-    const folderName = base.charAt(0).toUpperCase() + base.slice(1);
+    // Capitalise brand, strip hyphens for folder name: "att-mail" -> "Att Mail"
+    const folderName = brand.split("-").map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
     const totalCount = group.reduce((n, s) => n + s.count, 0);
-    suggestions.push({ base, group, action, folderName, totalCount });
+    suggestions.push({ brand, group, action, folderName, totalCount });
   }
   return suggestions.sort((a, b) => b.totalCount - a.totalCount);
 }
@@ -504,6 +538,15 @@ async function showAutoRule() {
   await new Promise((r) => setTimeout(r, 0));
 
   const suggestions = buildAutoRuleSuggestions(senders);
+  // Prefer an existing folder/rule (e.g. "ATT") over a brand-derived name
+  for (const sug of suggestions) {
+    if (sug.action !== "folder") continue;
+    const probes = [`x@${sug.brand}.com`, ...sug.group.map((s) => s.email)];
+    for (const email of probes) {
+      const existing = await withToken((t) => api().getExistingFolder(t, email)).catch(() => null);
+      if (existing) { sug.folderName = existing; break; }
+    }
+  }
   spinnerWrap.remove();
   btn.disabled = false;
 
@@ -526,13 +569,13 @@ async function showAutoRule() {
   updateCounter();
   body.append(counter);
 
-  for (const { base, group, action, folderName, totalCount } of suggestions) {
+  for (const { brand, group, action, folderName, totalCount } of suggestions) {
     const item = document.createElement("div");
     item.className = "auto-rule-item";
 
     const domainLabel = document.createElement("div");
     domainLabel.className = "rules-domain";
-    domainLabel.textContent = base;
+    domainLabel.textContent = folderName;
 
     const emailList = document.createElement("div");
     emailList.className = "auto-rule-emails";
