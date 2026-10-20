@@ -390,9 +390,9 @@ function isPromo(sender) {
   return tokenize(localPart).concat(tokenize(sender.name)).some((t) => PROMO_TOKENS.has(t));
 }
 
-function buildAutoRuleSuggestions(senders) {
+function buildAutoRuleSuggestions(list) {
   const byBase = new Map();
-  for (const s of senders) {
+  for (const s of list) {
     const domain = s.email.split("@")[1] || "";
     const base = domain.split(".")[0].toLowerCase();
     if (!base) continue;
@@ -402,6 +402,7 @@ function buildAutoRuleSuggestions(senders) {
   const suggestions = [];
   for (const [base, group] of byBase) {
     const promoCount = group.filter(isPromo).length;
+    // Suggest if: multiple senders from same domain base, OR any single promo sender
     if (group.length < 2 && promoCount === 0) continue;
     const allPromo = promoCount === group.length;
     const action = allPromo ? "block" : "folder";
@@ -415,8 +416,10 @@ function buildAutoRuleSuggestions(senders) {
 async function showAutoRule() {
   if (!senders.length) { setStatus("Scan Inbox first to generate suggestions.", true); return; }
 
-  const suggestions = buildAutoRuleSuggestions(senders);
+  const btn = $("#auto-rule");
+  btn.disabled = true;
 
+  // Show modal immediately with spinner while suggestions are computed
   const backdrop = document.createElement("div");
   backdrop.className = "preview-backdrop";
   const modal = document.createElement("div");
@@ -432,25 +435,54 @@ async function showAutoRule() {
   close.setAttribute("aria-label", "Close");
   head.append(title, close);
   const body = document.createElement("div");
+  body.className = "auto-rule-body";
+
+  // Spinner shown while computing
+  const spinnerWrap = document.createElement("div");
+  spinnerWrap.className = "auto-rule-spinner-wrap";
+  const spinner = document.createElement("div");
+  spinner.className = "auto-rule-spinner";
+  const spinnerLabel = document.createElement("span");
+  spinnerLabel.textContent = "Analysing senders\u2026";
+  spinnerWrap.append(spinner, spinnerLabel);
+  body.append(spinnerWrap);
+
   modal.append(head, body);
   backdrop.append(modal);
   document.body.append(backdrop);
 
-  const dismiss = () => { backdrop.remove(); document.removeEventListener("keydown", onKey); };
+  const dismiss = () => {
+    backdrop.remove();
+    btn.disabled = false;
+    document.removeEventListener("keydown", onKey);
+  };
   const onKey = (e) => { if (e.key === "Escape") dismiss(); };
   document.addEventListener("keydown", onKey);
   close.addEventListener("click", dismiss);
   backdrop.addEventListener("click", (e) => { if (e.target === backdrop) dismiss(); });
 
-  if (!suggestions.length) { body.textContent = "No automatic rule suggestions found."; return; }
+  // Yield to paint the spinner before running sync computation
+  await new Promise((r) => setTimeout(r, 0));
+
+  const suggestions = buildAutoRuleSuggestions(senders);
+  spinnerWrap.remove();
+  btn.disabled = false;
+
+  if (!suggestions.length) {
+    const empty = document.createElement("p");
+    empty.className = "age-note";
+    empty.textContent = "No automatic rule suggestions found. Try scanning more senders.";
+    body.append(empty);
+    return;
+  }
 
   let remaining = suggestions.length;
   const counter = document.createElement("p");
   counter.className = "age-note";
   const updateCounter = () => {
     counter.textContent = remaining > 0
-      ? `${remaining} suggestion${remaining !== 1 ? "s" : ""} remaining.`
-      : "All suggestions reviewed.";
+      ? `${remaining} suggestion${remaining !== 1 ? "s" : ""} remaining`
+      : "\u2713 All suggestions reviewed";
   };
   updateCounter();
   body.append(counter);
@@ -465,13 +497,13 @@ async function showAutoRule() {
 
     const emailList = document.createElement("div");
     emailList.className = "auto-rule-emails";
-    emailList.textContent = group.map((s) => s.email).join(", ");
+    emailList.textContent = group.map((s) => `${s.name} <${s.email}>`).join("\n");
 
     const actionBadge = document.createElement("div");
     actionBadge.className = `auto-rule-action auto-rule-action--${action}`;
     actionBadge.textContent = action === "block"
-      ? `Block \u00b7 ${totalCount.toLocaleString()} emails`
-      : `Folder \u201c${folderName}\u201d \u00b7 ${totalCount.toLocaleString()} emails`;
+      ? `\uD83D\uDEAB Block \u00b7 ${totalCount.toLocaleString()} emails`
+      : `\uD83D\uDCC2 Folder \u201c${folderName}\u201d \u00b7 ${totalCount.toLocaleString()} emails`;
 
     const btns = document.createElement("div");
     btns.className = "auto-rule-btns";
@@ -500,7 +532,7 @@ async function showAutoRule() {
       applyBtn.disabled = true;
       rejectBtn.disabled = true;
       resultEl.className = "result";
-      resultEl.textContent = "Working...";
+      resultEl.textContent = "Working\u2026";
       try {
         let totalMoved = 0;
         for (const sender of group) {
@@ -511,7 +543,7 @@ async function showAutoRule() {
           senders = senders.filter((s) => s !== sender);
         }
         render();
-        resultEl.textContent = `Done. ${totalMoved.toLocaleString()} emails moved.`;
+        resultEl.textContent = `\u2713 Done \u00b7 ${totalMoved.toLocaleString()} emails moved`;
         finish(true);
       } catch (error) {
         resultEl.className = "result error";

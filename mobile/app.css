@@ -342,6 +342,25 @@ li {
 .rules-group .age-options button:active { background: rgba(10,132,255,.2); color: var(--accent); }
 
 /* ── Auto Rule modal ── */
+.auto-rule-body { padding: 0; }
+.auto-rule-spinner-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  padding: 40px 16px;
+  color: var(--label2);
+  font-size: 14px;
+}
+@keyframes ar-spin { to { transform: rotate(360deg); } }
+.auto-rule-spinner {
+  width: 36px;
+  height: 36px;
+  border: 3px solid var(--fill2);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: ar-spin .75s linear infinite;
+}
 .auto-rule-item {
   padding: 14px 16px;
   border-bottom: .5px solid var(--separator);
