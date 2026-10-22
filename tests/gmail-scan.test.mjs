@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { scanInbox, parseFrom, listSubjects, getMessageContent } from "../gmail-scan.js";
+import { scanInbox, parseFrom, listSubjects, listSpamMessages, getMessageContent } from "../gmail-scan.js";
 import { htmlToText } from "../mail-content.js";
 
 assert.deepEqual(parseFrom('"Chase" <Alerts@Chase.com>'), { name: "Chase", email: "alerts@chase.com" });
@@ -37,6 +37,29 @@ assert.deepEqual(senders.map((s) => [s.email, s.count]), [["a@x.com", 3], ["c@x.
 }
 
 {
+  const fetchSpam = async (url) => {
+    const u = new URL(url);
+    const reply = (data) => ({ ok: true, status: 200, text: async () => JSON.stringify(data) });
+    if (u.pathname.endsWith("/messages")) {
+      assert.equal(u.searchParams.get("labelIds"), "SPAM");
+      return reply({ messages: [{ id: "s1" }, { id: "s2" }], resultSizeEstimate: 7 });
+    }
+    const id = u.pathname.split("/").pop();
+    return reply({ payload: { headers: [
+      { name: "From", value: `Spam ${id} <${id}@example.com>` },
+      { name: "Subject", value: `Subject ${id}` },
+      { name: "Date", value: `Date ${id}` }
+    ] } });
+  };
+  const result = await listSpamMessages("tok", 10, fetchSpam);
+  assert.equal(result.total, 7);
+  assert.deepEqual(result.messages.map((message) => [message.id, message.from, message.subject]), [
+    ["s1", "Spam s1 <s1@example.com>", "Subject s1"],
+    ["s2", "Spam s2 <s2@example.com>", "Subject s2"]
+  ]);
+}
+
+{
   const plainBody = Buffer.from("Full plain-text body\nwith a second line").toString("base64url");
   const htmlBody = Buffer.from("<p>HTML fallback</p>").toString("base64url");
   let htmlOnly = false;
@@ -71,10 +94,13 @@ assert.deepEqual(senders.map((s) => [s.email, s.count]), [["a@x.com", 3], ["c@x.
     cc: "Copy <copy@example.com>",
     subject: "Full message",
     date: "Today",
-    body: "Full plain-text body\nwith a second line"
+    body: "Full plain-text body\nwith a second line",
+    bodyHtml: "<p>HTML fallback</p>"
   });
   htmlOnly = true;
-  assert.equal((await getMessageContent("tok", "m1", fetchMessage)).body, "HTML fallback");
+  const htmlResult = await getMessageContent("tok", "m1", fetchMessage);
+  assert.equal(htmlResult.body, "HTML fallback");
+  assert.equal(htmlResult.bodyHtml, "<p>HTML fallback</p>");
   await assert.rejects(() => getMessageContent("tok", "", fetchMessage), /message ID/);
 }
 

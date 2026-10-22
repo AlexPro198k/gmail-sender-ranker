@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { scanInbox, listSubjects, getMessageContent, applyRule, trashInboxOlderThan, emptyFolder } from "../ms-mail.js";
+import { scanInbox, listSubjects, listSpamMessages, getMessageContent, applyRule, trashInboxOlderThan, emptyFolder } from "../ms-mail.js";
 
 function makeGraph(routes) {
   const calls = [];
@@ -40,6 +40,20 @@ const batchOk = (body) => ({ status: 200, data: { responses: body.requests.map((
 }
 
 {
+  const { fetchImpl, calls } = makeGraph(() => ({ status: 200, data: { value: [
+    { id: "s1", subject: "Older spam", receivedDateTime: "2025-01-01T00:00:00Z", from: { emailAddress: { address: "one@example.com" } } },
+    { id: "s2", subject: "Newer spam", receivedDateTime: "2025-02-01T00:00:00Z", from: { emailAddress: { name: "Two", address: "two@example.com" } } }
+  ] } }));
+  const result = await listSpamMessages("t", 10, fetchImpl);
+  assert.deepEqual(result.messages.map((message) => [message.id, message.subject, message.from]), [
+    ["s2", "Newer spam", "Two <two@example.com>"],
+    ["s1", "Older spam", "one@example.com"]
+  ]);
+  assert.match(calls[0].path, /\/me\/mailFolders\/junkemail\/messages$/);
+  assert.equal(calls[0].query.$orderby, "receivedDateTime desc");
+}
+
+{
   const { fetchImpl, calls } = makeGraph((m, p) => {
     assert.equal(p, "/me/messages/message-id");
     return { status: 200, data: {
@@ -60,9 +74,10 @@ const batchOk = (body) => ({ status: 200, data: { responses: body.requests.map((
     cc: "copy@example.com",
     subject: "Full message",
     date: "2025-01-01T00:00:00Z",
-    body: "Hello & welcome"
+    body: "Hello & welcome",
+    bodyHtml: "<p>Hello &amp; welcome</p><script>bad()</script>"
   });
-  assert.equal(calls[0].headers.Prefer, 'outlook.body-content-type="text"');
+  assert.equal(calls[0].headers.Prefer, 'outlook.body-content-type="html"');
   await assert.rejects(() => getMessageContent("t", "", fetchImpl), /message ID/);
 }
 

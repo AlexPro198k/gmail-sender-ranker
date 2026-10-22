@@ -123,6 +123,22 @@ function formatAddress(recipient) {
   return name || address;
 }
 
+export async function listSpamMessages(token, limit = 100, fetchImpl = fetch) {
+  const items = await pages(token,
+    `/me/mailFolders/junkemail/messages?$select=id,subject,from,receivedDateTime&$orderby=receivedDateTime%20desc&$top=${limit}`,
+    fetchImpl, limit);
+  const messages = items
+    .map((message) => ({
+      id: message.id,
+      from: formatAddress(message.from),
+      subject: message.subject || "(no subject)",
+      date: message.receivedDateTime || ""
+    }))
+    .sort((a, b) => b.date.localeCompare(a.date))
+    .slice(0, limit);
+  return { messages, total: messages.length };
+}
+
 export async function getMessageContent(token, rawId, fetchImpl = fetch) {
   const id = String(rawId ?? "").trim();
   if (!id) throw new Error("A message ID is required.");
@@ -130,9 +146,10 @@ export async function getMessageContent(token, rawId, fetchImpl = fetch) {
     $select: "id,subject,from,toRecipients,ccRecipients,receivedDateTime,sentDateTime,body"
   });
   const data = await graph(token, `/me/messages/${encodeURIComponent(id)}?${params}`, {
-    headers: { Prefer: 'outlook.body-content-type="text"' }
+    headers: { Prefer: 'outlook.body-content-type="html"' }
   }, fetchImpl);
   const content = data.body?.content || "";
+  const bodyHtml = data.body?.contentType?.toLowerCase() === "html" ? content : "";
   return {
     id: data.id || id,
     from: formatAddress(data.from),
@@ -140,7 +157,8 @@ export async function getMessageContent(token, rawId, fetchImpl = fetch) {
     cc: (data.ccRecipients ?? []).map(formatAddress).filter(Boolean).join(", "),
     subject: data.subject || "(no subject)",
     date: data.receivedDateTime || data.sentDateTime || "",
-    body: data.body?.contentType?.toLowerCase() === "html" ? htmlToText(content) : content
+    body: bodyHtml ? htmlToText(bodyHtml) : content,
+    bodyHtml
   };
 }
 

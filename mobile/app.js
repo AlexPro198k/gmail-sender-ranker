@@ -1,7 +1,7 @@
 import { CLIENT_ID } from "../config.js";
 import { applyRule, emptyFolder, trashInboxOlderThan, getExistingFolder, getDuplicateRules, mergeRules } from "../gmail-rules.js";
 import { buildAutoRuleSuggestions } from "./auto-rules.js";
-import { scanInbox, listSubjects, getMessageContent } from "../gmail-scan.js";
+import { scanInbox, listSubjects, listSpamMessages, getMessageContent } from "../gmail-scan.js";
 import * as msMail from "../ms-mail.js";
 import { cachedMsToken, finishMsSignIn, msConfigured, msSignOut, startMsSignIn } from "../ms-auth.js";
 import { cachedYahooToken, finishYahooSignIn, yahooConfigured, yahooSignOut, startYahooSignIn } from "../yahoo-auth.js";
@@ -38,13 +38,14 @@ let tokenExpires = 0;
 let tokenClient = null;
 let senders = [];
 let provider = localStorage.getItem("provider") || "google";
-const googleApi = { scanInbox, listSubjects, getMessageContent, applyRule, emptyFolder, trashInboxOlderThan, getExistingFolder, getDuplicateRules, mergeRules };
+const googleApi = { scanInbox, listSubjects, listSpamMessages, getMessageContent, applyRule, emptyFolder, trashInboxOlderThan, getExistingFolder, getDuplicateRules, mergeRules };
 
 const YAHOO_NOT_AVAILABLE = "Mail management isn't available for Yahoo Mail — Yahoo doesn't provide a public REST API for third-party apps.";
 
 const yahooApi = {
   scanInbox: () => Promise.reject(new Error(YAHOO_NOT_AVAILABLE)),
   listSubjects: () => Promise.reject(new Error(YAHOO_NOT_AVAILABLE)),
+  listSpamMessages: () => Promise.reject(new Error(YAHOO_NOT_AVAILABLE)),
   getMessageContent: () => Promise.reject(new Error(YAHOO_NOT_AVAILABLE)),
   applyRule: () => Promise.reject(new Error(YAHOO_NOT_AVAILABLE)),
   emptyFolder: () => Promise.reject(new Error(YAHOO_NOT_AVAILABLE)),
@@ -125,14 +126,105 @@ function showApp(signedIn, userLabel = "") {
   const h1 = document.querySelector("header h1");
   h1.textContent = signedIn && userLabel ? `Email Organizer \u00b7 ${userLabel}` : "Email Organizer";
   const isYahoo = provider === "yahoo";
-  ["#scan", "#empty-trash", "#empty-spam", "#delete-inbox"].forEach((id) => {
+  ["#scan", "#empty-trash", "#empty-spam", "#view-spam", "#delete-inbox"].forEach((id) => {
     const el = $(id);
     if (el) el.disabled = isYahoo;
   });
   if (isYahoo && signedIn) setStatus(YAHOO_NOT_AVAILABLE, true);
 }
 
-async function showPreview(sender) {
+const EMAIL_HTML_TAGS = new Set([
+  "a", "b", "blockquote", "br", "caption", "code", "del", "div", "em", "h1", "h2", "h3", "h4", "h5", "h6",
+  "hr", "i", "li", "ol", "p", "pre", "s", "span", "strong", "sub", "sup", "table", "tbody", "td", "tfoot",
+  "th", "thead", "tr", "u", "ul"
+]);
+const EMAIL_HTML_BLOCKED_TAGS = new Set([
+  "audio", "base", "button", "embed", "form", "head", "iframe", "input", "link", "math", "meta", "noscript",
+  "object", "script", "select", "style", "svg", "textarea", "video"
+]);
+const EMAIL_IMAGE_PROTOCOLS = new Set(["https:"]);
+const EMAIL_LINK_PROTOCOLS = new Set(["http:", "https:", "mailto:", "tel:"]);
+
+function safeEmailUrl(value, protocols) {
+  const source = String(value || "").trim();
+  if (!/^(?:https?:\/\/|mailto:|tel:|\/\/)/i.test(source)) return "";
+  try {
+    const url = new URL(source, location.href);
+    return protocols.has(url.protocol) && !url.username && !url.password ? url.href : "";
+  } catch {
+    return "";
+  }
+}
+
+function copyEmailNodes(source, target, remoteImages) {
+  for (const child of source.childNodes) {
+    if (child.nodeType === 3) {
+      target.append(document.createTextNode(child.textContent));
+      continue;
+    }
+    if (child.nodeType !== 1) continue;
+    const tag = child.localName.toLowerCase();
+    if (EMAIL_HTML_BLOCKED_TAGS.has(tag)) continue;
+
+    if (tag === "img") {
+      const image = document.createElement("img");
+      image.alt = child.getAttribute("alt") || "";
+      image.loading = "lazy";
+      image.decoding = "async";
+      image.referrerPolicy = "no-referrer";
+      const sourceUrl = child.getAttribute("src") || "";
+      const dataImage = /^data:image\/(?:png|jpeg|gif|webp|avif);base64,/i.test(sourceUrl) && sourceUrl.length <= 1_000_000;
+      const remoteUrl = safeEmailUrl(sourceUrl, EMAIL_IMAGE_PROTOCOLS);
+      if (dataImage) image.src = sourceUrl;
+      else if (remoteUrl) {
+        image.dataset.remoteSrc = remoteUrl;
+        remoteImages.push(image);
+      }
+      for (const attribute of ["width", "height"]) {
+        const value = Number.parseInt(child.getAttribute(attribute), 10);
+        if (Number.isInteger(value) && value > 0 && value <= 2048) image.setAttribute(attribute, String(value));
+      }
+      target.append(image);
+      continue;
+    }
+
+    if (!EMAIL_HTML_TAGS.has(tag)) {
+      copyEmailNodes(child, target, remoteImages);
+      continue;
+    }
+    const element = document.createElement(tag);
+    if (tag === "a") {
+      const href = safeEmailUrl(child.getAttribute("href"), EMAIL_LINK_PROTOCOLS);
+      if (href) {
+        element.href = href;
+        element.target = "_blank";
+        element.rel = "noopener noreferrer";
+        element.referrerPolicy = "no-referrer";
+      }
+    }
+    if (tag === "td" || tag === "th") {
+      for (const attribute of ["colspan", "rowspan"]) {
+        const value = Number.parseInt(child.getAttribute(attribute), 10);
+        if (Number.isInteger(value) && value > 0 && value <= 100) element.setAttribute(attribute, String(value));
+      }
+    }
+    copyEmailNodes(child, element, remoteImages);
+    target.append(element);
+  }
+}
+
+function renderEmailHtml(html) {
+  const template = document.createElement("template");
+  // Keep email markup inert, then rebuild only allowlisted elements for display.
+  template.innerHTML = String(html);
+  const content = document.createElement("div");
+  content.className = "preview-message-html";
+  const remoteImages = [];
+  copyEmailNodes(template.content, content, remoteImages);
+  return { content, remoteImages };
+}
+
+async function showMessageViewer({ heading, loadItems, emptyMessage, moreText, showSender = false }) {
   const backdrop = document.createElement("div");
   backdrop.className = "preview-backdrop";
   const modal = document.createElement("div");
@@ -141,14 +233,14 @@ async function showPreview(sender) {
   modal.setAttribute("aria-modal", "true");
   const head = document.createElement("header");
   const title = document.createElement("span");
-  title.textContent = `${sender.name} <${sender.email}>`;
+  title.textContent = heading;
   const close = document.createElement("button");
   close.type = "button";
   close.textContent = "\u2715";
   close.setAttribute("aria-label", "Close preview");
   head.append(title, close);
   const body = document.createElement("div");
-  body.textContent = "Loading subjects...";
+  body.textContent = "Loading messages...";
   modal.append(head, body);
   backdrop.append(modal);
   document.body.append(backdrop);
@@ -159,12 +251,16 @@ async function showPreview(sender) {
   close.addEventListener("click", dismiss);
   backdrop.addEventListener("click", (event) => { if (event.target === backdrop) dismiss(); });
 
-  function renderSubjects(subjects, focusId) {
-    title.textContent = `${sender.name} <${sender.email}>`;
+  function renderList(items, total, focusId) {
+    title.textContent = heading;
     body.replaceChildren();
+    if (!items.length) {
+      body.textContent = emptyMessage;
+      return;
+    }
     const list = document.createElement("ol");
     list.className = "preview-message-list";
-    for (const item of subjects) {
+    for (const item of items) {
       const li = document.createElement("li");
       const select = document.createElement("button");
       select.type = "button";
@@ -172,34 +268,35 @@ async function showPreview(sender) {
       select.textContent = item.subject;
       select.disabled = !item.id;
       select.setAttribute("aria-label", `Read message: ${item.subject}`);
-      select.addEventListener("click", () => openMessage(item, subjects));
-      if (item.date) {
-        const date = document.createElement("small");
-        date.textContent = item.date;
-        li.append(select, date);
-      } else {
-        li.append(select);
+      select.addEventListener("click", () => openMessage(item, items, total));
+      li.append(select);
+      const metadata = [showSender && item.from, item.date].filter(Boolean).join(" · ");
+      if (metadata) {
+        const small = document.createElement("small");
+        small.textContent = metadata;
+        li.append(small);
       }
       list.append(li);
       if (item.id === focusId) select.dataset.focusTarget = "true";
     }
     body.append(list);
-    if (sender.count > subjects.length) {
-      const more = document.createElement("small");
-      more.textContent = `Showing the latest ${subjects.length} of ${sender.count}.`;
-      body.append(more);
+    const moreMessage = moreText?.(items, total);
+    if (moreMessage) {
+      const note = document.createElement("small");
+      note.textContent = moreMessage;
+      body.append(note);
     }
     body.querySelector("[data-focus-target]")?.focus();
   }
 
-  function renderMessage(message, subjects, selected, error) {
+  function renderMessage(message, items, total, selected, error) {
     title.textContent = error ? selected.subject : message.subject;
     body.replaceChildren();
     const back = document.createElement("button");
     back.type = "button";
     back.className = "preview-message-back";
     back.textContent = "Back to messages";
-    back.addEventListener("click", () => renderSubjects(subjects, selected.id));
+    back.addEventListener("click", () => renderList(items, total, selected.id));
     body.append(back);
     if (error) {
       const errorMessage = document.createElement("p");
@@ -223,30 +320,80 @@ async function showPreview(sender) {
       row.append(name, content);
       metadata.append(row);
     }
-    const content = document.createElement("pre");
-    content.className = "preview-message-body";
-    content.textContent = message.body || "No readable message body.";
-    detail.append(metadata, content);
+    detail.append(metadata);
+    if (message.bodyHtml) {
+      const { content, remoteImages } = renderEmailHtml(message.bodyHtml);
+      if (!content.hasChildNodes()) content.textContent = message.body || "No readable message body.";
+      if (remoteImages.length) {
+        const imageNotice = document.createElement("div");
+        imageNotice.className = "preview-message-image-notice";
+        const notice = document.createElement("span");
+        notice.textContent = `${remoteImages.length} remote image${remoteImages.length === 1 ? "" : "s"} blocked for privacy.`;
+        const loadImages = document.createElement("button");
+        loadImages.type = "button";
+        loadImages.className = "preview-message-load-images";
+        loadImages.textContent = "Load images";
+        loadImages.addEventListener("click", () => {
+          for (const image of remoteImages) {
+            image.src = image.dataset.remoteSrc;
+            delete image.dataset.remoteSrc;
+          }
+          imageNotice.remove();
+        });
+        imageNotice.append(notice, loadImages);
+        detail.append(imageNotice);
+      }
+      detail.append(content);
+    } else {
+      const content = document.createElement("pre");
+      content.className = "preview-message-body";
+      content.textContent = message.body || "No readable message body.";
+      detail.append(content);
+    }
     body.append(detail);
   }
 
-  async function openMessage(item, subjects) {
+  async function openMessage(item, items, total) {
     body.textContent = "Loading message...";
     try {
       const message = await withToken((t) => api().getMessageContent(t, item.id));
-      if (backdrop.isConnected) renderMessage(message, subjects, item);
+      if (backdrop.isConnected) renderMessage(message, items, total, item);
     } catch (error) {
-      if (backdrop.isConnected) renderMessage(null, subjects, item, error.message);
+      if (backdrop.isConnected) renderMessage(null, items, total, item, error.message);
     }
   }
 
   try {
-    const { subjects } = await withToken((t) => api().listSubjects(t, sender.email));
-    if (!subjects.length) { body.textContent = "No Inbox emails found for this sender."; return; }
-    renderSubjects(subjects);
+    const { items, total } = await loadItems();
+    renderList(items, total);
   } catch (error) {
     body.textContent = error.message;
   }
+}
+
+function showPreview(sender) {
+  return showMessageViewer({
+    heading: `${sender.name} <${sender.email}>`,
+    loadItems: async () => {
+      const { subjects } = await withToken((t) => api().listSubjects(t, sender.email));
+      return { items: subjects, total: sender.count };
+    },
+    emptyMessage: "No Inbox emails found for this sender.",
+    moreText: (items, total) => total > items.length ? `Showing the latest ${items.length} of ${total}.` : ""
+  });
+}
+
+function showSpam() {
+  return showMessageViewer({
+    heading: "Spam",
+    loadItems: async () => {
+      const { messages, total } = await withToken((t) => api().listSpamMessages(t));
+      return { items: messages, total };
+    },
+    emptyMessage: "No Spam emails found.",
+    moreText: (items, total) => total > items.length ? `Showing the latest ${items.length} of ${total}.` : "",
+    showSender: true
+  });
 }
 
 function showDeleteInbox(run, setStatus) {
@@ -729,6 +876,7 @@ $("#auto-rule").addEventListener("click", showAutoRule);
 $("#filter").addEventListener("input", render);
 wireEmpty("#empty-trash", "trash", "Trash");
 wireEmpty("#empty-spam", "spam", "Spam");
+$("#view-spam").addEventListener("click", showSpam);
 $("#delete-inbox").addEventListener("click", () =>
   showDeleteInbox((months) => withToken((t) => api().trashInboxOlderThan(t, months)), setStatus)
 );

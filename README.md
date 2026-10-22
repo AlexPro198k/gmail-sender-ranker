@@ -60,7 +60,8 @@ Run `node tests/gmail-rules.test.mjs` and `node tests/gmail-scan.test.mjs` to te
 ## Outlook / Hotmail / Live (mobile web app)
 
 The mobile page can also manage Microsoft mailboxes through Microsoft Graph, with the same features
-(rank senders, preview subjects and full message content, Delete / Folder / Delete Always / Block, Empty Trash, Delete Spam, Delete Inbox by age).
+(rank senders, preview subjects and full message content, load remote images on request, View Spam, Delete / Folder /
+Delete Always / Block, Empty Trash, Delete Spam, Delete Inbox by age).
 For Gmail, Auto Rule Suggestions group business senders by brand domain and apply a domain-wide rule;
 public mailbox providers remain scoped to each sender address and use the mailbox name as the folder suggestion.
 

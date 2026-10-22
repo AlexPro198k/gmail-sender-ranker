@@ -113,6 +113,30 @@ export async function listSubjects(token, email, limit = 100, fetchImpl = fetch)
   return { subjects: subjects.filter(Boolean), total: list.resultSizeEstimate ?? ids.length };
 }
 
+export async function listSpamMessages(token, limit = 100, fetchImpl = fetch) {
+  const params = new URLSearchParams({ labelIds: "SPAM", maxResults: String(limit) });
+  const list = await call(token, `${API}/messages?${params}`, fetchImpl);
+  const ids = (list.messages || []).map((message) => message.id);
+  const messages = new Array(ids.length);
+  let next = 0;
+  async function worker() {
+    while (next < ids.length) {
+      const i = next++;
+      const params = new URLSearchParams({ format: "metadata" });
+      for (const name of ["From", "Subject", "Date"]) params.append("metadataHeaders", name);
+      try {
+        const data = await call(token, `${API}/messages/${ids[i]}?${params}`, fetchImpl);
+        const get = (name) => data.payload?.headers?.find((header) => header.name.toLowerCase() === name)?.value || "";
+        messages[i] = { id: ids[i], from: get("from"), subject: get("subject") || "(no subject)", date: get("date") };
+      } catch (error) {
+        if (error.status !== 404) throw error;
+      }
+    }
+  }
+  await Promise.all(Array.from({ length: CONCURRENCY }, worker));
+  return { messages: messages.filter(Boolean), total: list.resultSizeEstimate ?? ids.length };
+}
+
 function decodeBase64Url(value, charset) {
   const base64 = value.replace(/-/g, "+").replace(/_/g, "/").padEnd(Math.ceil(value.length / 4) * 4, "=");
   const bytes = Uint8Array.from(atob(base64), (character) => character.charCodeAt(0));
@@ -139,9 +163,12 @@ function extractBody(payload) {
   collect(payload);
 
   const plain = parts.filter((part) => part.mimeType === "text/plain");
-  if (plain.length) return plain.map((part) => decodeBase64Url(part.data, part.charset)).join("\n").trim();
   const html = parts.find((part) => part.mimeType === "text/html");
-  return html ? htmlToText(decodeBase64Url(html.data, html.charset)) : "";
+  const bodyHtml = html ? decodeBase64Url(html.data, html.charset) : "";
+  const body = plain.length
+    ? plain.map((part) => decodeBase64Url(part.data, part.charset)).join("\n").trim()
+    : htmlToText(bodyHtml);
+  return { body, bodyHtml };
 }
 
 export async function getMessageContent(token, rawId, fetchImpl = fetch) {
@@ -152,6 +179,7 @@ export async function getMessageContent(token, rawId, fetchImpl = fetch) {
   const headers = data.payload?.headers ?? [];
   const get = (name) => headers.find((header) => header.name.toLowerCase() === name)?.value || "";
   const internalDate = data.internalDate ? new Date(Number(data.internalDate)).toISOString() : "";
+  const { body, bodyHtml } = extractBody(data.payload ?? {});
   return {
     id: data.id || id,
     from: get("from"),
@@ -159,6 +187,7 @@ export async function getMessageContent(token, rawId, fetchImpl = fetch) {
     cc: get("cc"),
     subject: get("subject") || "(no subject)",
     date: get("date") || internalDate,
-    body: extractBody(data.payload ?? {})
+    body,
+    bodyHtml
   };
 }

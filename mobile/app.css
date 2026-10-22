@@ -313,6 +313,11 @@ button.danger:active { background: var(--red-soft); opacity: 1; }
   margin: 20px 0 0;
 }
 
+.toolbar-stack {
+  display: grid;
+  gap: 8px;
+}
+
 .toolbar .primary {
   grid-column: 1 / -1;
   min-height: 54px;
@@ -667,6 +672,39 @@ li:active { border-color: var(--border2); }
   overflow-wrap: anywhere;
 }
 .preview-message-error { color: var(--red); }
+.preview-message-html {
+  overflow-x: auto;
+  color: var(--text);
+  font-size: 13px;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+}
+.preview-message-html img { display: inline-block; max-width: 100%; height: auto; vertical-align: middle; }
+.preview-message-html table { max-width: 100%; border-collapse: collapse; }
+.preview-message-html th,
+.preview-message-html td { overflow-wrap: anywhere; }
+.preview-message-html a { color: var(--accent); text-decoration: underline; overflow-wrap: anywhere; }
+.preview-message-image-notice {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 0 0 12px;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--surface2);
+  color: var(--text2);
+  font-size: 12px;
+}
+.preview-message-load-images {
+  flex-shrink: 0;
+  min-height: 0;
+  padding: 7px 10px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 12px;
+}
 
 /* ══════════════════════════════════════════
    DELETE INBOX MODAL

@@ -6,10 +6,10 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="theme-color" content="#16181d">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' https://accounts.google.com/gsi/; style-src 'self' https://accounts.google.com/gsi/ 'unsafe-hashes' 'sha256-RU4sU0AaS8IBGZx8XrGt/pa9A5SLA3dQszGeqT5L3Kw='; frame-src https://accounts.google.com/gsi/; connect-src https://gmail.googleapis.com https://accounts.google.com https://graph.microsoft.com https://login.microsoftonline.com https://api.login.yahoo.com; manifest-src 'self'; base-uri 'none'; form-action 'none'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' https://accounts.google.com/gsi/; style-src 'self' https://accounts.google.com/gsi/ 'unsafe-hashes' 'sha256-RU4sU0AaS8IBGZx8XrGt/pa9A5SLA3dQszGeqT5L3Kw='; img-src https: data:; frame-src https://accounts.google.com/gsi/; connect-src https://gmail.googleapis.com https://accounts.google.com https://graph.microsoft.com https://login.microsoftonline.com https://api.login.yahoo.com; manifest-src 'self'; base-uri 'none'; form-action 'none'">
   <link rel="manifest" href="manifest.webmanifest">
   <title>Email Organizer</title>
-  <link rel="stylesheet" href="app.css?v=10">
+  <link rel="stylesheet" href="app.css?v=11">
 </head>
 <body>
   <header>
@@ -33,7 +33,10 @@
         <button id="auto-rule">✦ Auto Rule</button>
         <div class="toolbar-divider">Danger Zone</div>
         <button id="empty-trash" class="danger">Empty Trash</button>
-        <button id="empty-spam" class="danger">Delete Spam</button>
+        <div class="toolbar-stack">
+          <button id="empty-spam" class="danger">Delete Spam</button>
+          <button id="view-spam">View Spam</button>
+        </div>
         <button id="delete-inbox" class="danger">Delete Old Inbox</button>
       </div>
       <p id="status" role="status"></p>
@@ -42,6 +45,6 @@
     </section>
   </main>
   <script src="https://accounts.google.com/gsi/client" async defer></script>
-  <script type="module" src="app.js?v=10"></script>
+  <script type="module" src="app.js?v=11"></script>
 </body>
 </html>
