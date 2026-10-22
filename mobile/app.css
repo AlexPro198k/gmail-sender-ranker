@@ -109,6 +109,8 @@
   -webkit-tap-highlight-color: transparent;
 }
 
+[hidden] { display: none !important; }
+
 body {
   margin: 0;
   background: var(--bg);
@@ -488,13 +490,27 @@ li:active { border-color: var(--border2); }
   color: var(--green);
   margin-top: 10px;
   line-height: 1.5;
-  display: flex;
+  display: none;
   align-items: center;
   gap: 5px;
 }
-.result::before { content: "✓"; font-weight: 700; }
+.result:not(:empty) { display: flex; }
+.result::before { content: none; }
+.result.pending { color: var(--text2); }
+.result.pending::before {
+  content: "";
+  width: 10px;
+  height: 10px;
+  flex: 0 0 10px;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: result-spin .7s linear infinite;
+}
+.result.success::before { content: "✓"; font-weight: 700; }
 .result.error { color: var(--red); }
 .result.error::before { content: "✕"; }
+@keyframes result-spin { to { transform: rotate(360deg); } }
 
 /* ══════════════════════════════════════════
    MODAL BACKDROP
@@ -614,6 +630,8 @@ li:active { border-color: var(--border2); }
   padding: 0 20px;
   line-height: 1.6;
 }
+.age-note.rule-success { color: var(--green); }
+.age-note.rule-error { color: var(--red); }
 
 .age-options { display: grid; gap: 8px; padding: 0 20px 12px; }
 

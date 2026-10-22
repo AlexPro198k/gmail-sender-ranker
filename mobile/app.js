@@ -254,6 +254,8 @@ function render() {
 
     const result = document.createElement("div");
     result.className = "result";
+    result.setAttribute("role", "status");
+    result.setAttribute("aria-live", "polite");
     const actions = document.createElement("div");
     actions.className = "actions";
     const buttons = [
@@ -273,10 +275,21 @@ function render() {
   }
 }
 
+function setResult(result, state, message) {
+  result.className = state ? `result ${state}` : "result";
+  result.textContent = message;
+}
+
 async function run(action, sender, buttons, result, item) {
   let folderName;
   if (action === "folder") {
-    const suggested = await withToken((t) => api().getExistingFolder(t, sender.email)).catch(() => null);
+    let suggested;
+    try {
+      suggested = await withToken((t) => api().getExistingFolder(t, sender.email));
+    } catch (error) {
+      setStatus(error.message, true);
+      return;
+    }
     folderName = prompt(`Folder name for ${sender.email}:`, suggested || sender.name.slice(0, 60))?.trim();
     if (!folderName) return;
   }
@@ -289,17 +302,16 @@ async function run(action, sender, buttons, result, item) {
   if (!confirm(`${sender.name} <${sender.email}>\n\nThis will ${descriptions[action]}. Continue?`)) return;
 
   buttons.forEach((b) => (b.disabled = true));
-  result.className = "result";
-  result.textContent = "Working...";
+  setResult(result, "pending", "Working...");
   try {
     const r = await withToken((t) => api().applyRule(t, action, sender.email, fetch, { folderName }));
     const moved = r.moved ?? r.trashed;
-    result.textContent = `${moved.toLocaleString()} emails moved` + (action === "trash" ? "." : r.filterCreated ? "; rule created." : "; rule already existed.");
+    setResult(result, "success", `${moved.toLocaleString()} emails moved` +
+      (action === "trash" ? "." : r.filterCreated ? "; rule created." : "; rule already existed."));
     senders = senders.filter((s) => s !== sender);
     setTimeout(() => item.remove(), 1500);
   } catch (error) {
-    result.classList.add("error");
-    result.textContent = error.message;
+    setResult(result, "error", error.message);
     buttons.forEach((b) => (b.disabled = false));
   }
 }
@@ -382,14 +394,15 @@ async function showManageRules() {
         btn.addEventListener("click", async () => {
           if (!confirm(`Merge all "${domain}" rules into "${folderName}"?\n\nOther folders for this sender will be emptied and their rules deleted.`)) return;
           options.querySelectorAll("button").forEach((b) => (b.disabled = true));
+          note.classList.remove("rule-success", "rule-error");
           note.textContent = "Working...";
           try {
             const r = await withToken((t) => api().mergeRules(t, domain, entries, folderName));
             note.textContent = `Done. ${r.moved.toLocaleString()} emails moved to "${folderName}".`;
-            note.style.color = "var(--green)";
+            note.classList.add("rule-success");
           } catch (error) {
             note.textContent = error.message;
-            note.style.color = "var(--red)";
+            note.classList.add("rule-error");
             options.querySelectorAll("button").forEach((b) => (b.disabled = false));
           }
         });
@@ -454,8 +467,9 @@ async function showAutoRule() {
   // Yield to paint the spinner before running sync computation
   await new Promise((r) => setTimeout(r, 0));
 
-  const suggestions = buildAutoRuleSuggestions(senders);
+  let suggestions;
   try {
+    suggestions = buildAutoRuleSuggestions(senders);
     for (const suggestion of suggestions) {
       if (suggestion.action !== "folder") continue;
       const existing = await withToken((t) =>
@@ -470,7 +484,9 @@ async function showAutoRule() {
     btn.disabled = false;
     const message = document.createElement("p");
     message.className = "result error";
-    message.textContent = `Could not check existing rules and folders: ${error.message}`;
+    message.setAttribute("role", "status");
+    message.setAttribute("aria-live", "polite");
+    message.textContent = `Could not prepare auto-rule suggestions: ${error.message}`;
     body.append(message);
     return;
   }
@@ -526,6 +542,8 @@ async function showAutoRule() {
     rejectBtn.textContent = "Reject";
     const resultEl = document.createElement("div");
     resultEl.className = "result";
+    resultEl.setAttribute("role", "status");
+    resultEl.setAttribute("aria-live", "polite");
 
     const finish = (accepted) => {
       applyBtn.disabled = true;
@@ -540,8 +558,7 @@ async function showAutoRule() {
     applyBtn.addEventListener("click", async () => {
       applyBtn.disabled = true;
       rejectBtn.disabled = true;
-      resultEl.className = "result";
-      resultEl.textContent = "Working\u2026";
+      setResult(resultEl, "pending", "Working\u2026");
       try {
         let totalMoved = 0;
         if (matchDomains && provider === "google") {
@@ -562,11 +579,10 @@ async function showAutoRule() {
         }
         senders = senders.filter((sender) => !group.includes(sender));
         render();
-        resultEl.textContent = `\u2713 Done \u00b7 ${totalMoved.toLocaleString()} emails moved`;
+        setResult(resultEl, "success", `Done \u00b7 ${totalMoved.toLocaleString()} emails moved`);
         finish(true);
       } catch (error) {
-        resultEl.className = "result error";
-        resultEl.textContent = error.message;
+        setResult(resultEl, "error", error.message);
         applyBtn.disabled = false;
         rejectBtn.disabled = false;
       }
