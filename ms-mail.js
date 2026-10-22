@@ -1,4 +1,5 @@
 import { normalizeEmail } from "./gmail-rules.js";
+import { htmlToText } from "./mail-content.js";
 
 const GRAPH = "https://graph.microsoft.com/v1.0";
 const BATCH = 20;
@@ -7,17 +8,17 @@ export const MS_AGE_OPTIONS = Object.freeze({ 12: "1 year", 6: "6 months", 3: "3
 
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 
-async function graph(token, path, { method = "GET", body } = {}, fetchImpl = fetch, attempt = 0) {
+async function graph(token, path, { method = "GET", body, headers = {} } = {}, fetchImpl = fetch, attempt = 0) {
   const url = path.startsWith("http") ? path : `${GRAPH}${path}`;
   const res = await fetchImpl(url, {
     method,
-    headers: { Authorization: `Bearer ${token}`, ...(body ? { "Content-Type": "application/json" } : {}) },
+    headers: { Authorization: `Bearer ${token}`, ...(body ? { "Content-Type": "application/json" } : {}), ...headers },
     body: body ? JSON.stringify(body) : undefined
   });
   if ((res.status === 429 || res.status === 503 || res.status === 504) && attempt < MAX_RETRIES) {
     const retryAfter = Number(res.headers?.get?.("retry-after")) * 1000;
     await wait(retryAfter || Math.min(30_000, 1000 * 2 ** attempt));
-    return graph(token, path, { method, body }, fetchImpl, attempt + 1);
+    return graph(token, path, { method, body, headers }, fetchImpl, attempt + 1);
   }
   const text = await res.text();
   const data = text ? JSON.parse(text) : null;
@@ -107,12 +108,40 @@ export async function listSubjects(token, rawEmail, limit = 100, fetchImpl = fet
   const email = normalizeEmail(rawEmail);
   const filter = encodeURIComponent(`from/emailAddress/address eq '${quote(email)}'`);
   const items = await pages(token,
-    `/me/mailFolders/inbox/messages?$filter=${filter}&$select=subject,receivedDateTime&$top=${limit}`, fetchImpl, limit);
+    `/me/mailFolders/inbox/messages?$filter=${filter}&$select=id,subject,receivedDateTime&$top=${limit}`, fetchImpl, limit);
   const subjects = items
-    .map((m) => ({ subject: m.subject || "(no subject)", date: m.receivedDateTime || "" }))
+    .map((m) => ({ id: m.id, subject: m.subject || "(no subject)", date: m.receivedDateTime || "" }))
     .sort((a, b) => b.date.localeCompare(a.date))
     .slice(0, limit);
   return { subjects, total: subjects.length };
+}
+
+function formatAddress(recipient) {
+  const address = recipient?.emailAddress?.address || "";
+  const name = recipient?.emailAddress?.name || "";
+  if (name && address) return `${name} <${address}>`;
+  return name || address;
+}
+
+export async function getMessageContent(token, rawId, fetchImpl = fetch) {
+  const id = String(rawId ?? "").trim();
+  if (!id) throw new Error("A message ID is required.");
+  const params = new URLSearchParams({
+    $select: "id,subject,from,toRecipients,ccRecipients,receivedDateTime,sentDateTime,body"
+  });
+  const data = await graph(token, `/me/messages/${encodeURIComponent(id)}?${params}`, {
+    headers: { Prefer: 'outlook.body-content-type="text"' }
+  }, fetchImpl);
+  const content = data.body?.content || "";
+  return {
+    id: data.id || id,
+    from: formatAddress(data.from),
+    to: (data.toRecipients ?? []).map(formatAddress).filter(Boolean).join(", "),
+    cc: (data.ccRecipients ?? []).map(formatAddress).filter(Boolean).join(", "),
+    subject: data.subject || "(no subject)",
+    date: data.receivedDateTime || data.sentDateTime || "",
+    body: data.body?.contentType?.toLowerCase() === "html" ? htmlToText(content) : content
+  };
 }
 
 async function wellKnownId(token, name, fetchImpl) {

@@ -620,6 +620,54 @@ li:active { border-color: var(--border2); }
   margin-top: 3px;
 }
 
+.preview-message-select {
+  width: 100%;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--text);
+  box-shadow: none;
+  font: inherit;
+  line-height: 1.4;
+  text-align: left;
+  overflow-wrap: anywhere;
+}
+.preview-message-select:disabled { color: var(--text2); opacity: .7; }
+.preview-message-select:active { background: var(--surface2); opacity: 1; }
+
+.preview-message-back {
+  min-height: 0;
+  margin: 8px 0 12px;
+  padding: 8px 12px;
+  background: var(--surface2);
+  color: var(--text);
+  font-size: 13px;
+}
+
+.preview-message-meta-row {
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr);
+  gap: 8px;
+  margin: 5px 0;
+  font-size: 12px;
+  line-height: 1.45;
+}
+.preview-message-meta-row dt { color: var(--text3); }
+.preview-message-meta-row dd { margin: 0; overflow-wrap: anywhere; }
+.preview-message-detail dl { margin: 0 0 14px; }
+.preview-message-body {
+  margin: 0;
+  color: var(--text);
+  font-family: inherit;
+  font-size: 13px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.preview-message-error { color: var(--red); }
+
 /* ══════════════════════════════════════════
    DELETE INBOX MODAL
    ══════════════════════════════════════════ */

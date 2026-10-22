@@ -394,9 +394,19 @@ body.minimized .maintenance { display: none; }
 .preview-modal { width: min(560px, 92vw); max-height: 80vh; display: flex; flex-direction: column; background: #202124; color: var(--text); border: 1px solid var(--line); border-radius: 12px; padding: 12px; }
 .preview-modal header { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 8px; font-weight: 600; overflow-wrap: anywhere; }
 .preview-modal header button { border: 0; background: transparent; color: inherit; cursor: pointer; font-size: 16px; }
+.preview-modal > div { min-height: 0; overflow-y: auto; }
 .preview-modal ol { margin: 0; padding-left: 22px; overflow-y: auto; font-size: 13px; }
 .preview-modal li { padding: 3px 0; overflow-wrap: anywhere; }
 .preview-modal li small { display: block; opacity: 0.6; }
+.preview-message-select { width: 100%; border: 0; background: transparent; color: inherit; cursor: pointer; font: inherit; padding: 0; text-align: left; overflow-wrap: anywhere; }
+.preview-message-select:disabled { cursor: default; opacity: .65; }
+.preview-message-back { border: 1px solid var(--line); border-radius: 6px; background: rgba(255,255,255,.08); color: inherit; cursor: pointer; font: inherit; margin: 4px 0 10px; padding: 6px 9px; }
+.preview-message-meta-row { display: grid; grid-template-columns: 40px minmax(0, 1fr); gap: 8px; margin: 5px 0; font-size: 12px; }
+.preview-message-meta-row dt { opacity: .65; }
+.preview-message-meta-row dd { margin: 0; overflow-wrap: anywhere; }
+.preview-message-detail dl { margin: 0 0 12px; }
+.preview-message-body { margin: 0; font-family: inherit; font-size: 12px; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; }
+.preview-message-error { color: #ffb4b4; }
 
 .age-options { display: grid; gap: 8px; }
 .age-options button { border: 1px solid var(--line, rgba(255,255,255,.15)); border-radius: 8px; background: rgba(255,255,255,.08); color: inherit; cursor: pointer; font: inherit; padding: 10px; }

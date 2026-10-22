@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { scanInbox, listSubjects, applyRule, trashInboxOlderThan, emptyFolder } from "../ms-mail.js";
+import { scanInbox, listSubjects, getMessageContent, applyRule, trashInboxOlderThan, emptyFolder } from "../ms-mail.js";
 
 function makeGraph(routes) {
   const calls = [];
@@ -7,7 +7,7 @@ function makeGraph(routes) {
     const u = new URL(url);
     const path = decodeURIComponent(u.pathname.replace("/v1.0", ""));
     const body = init.body ? JSON.parse(init.body) : undefined;
-    calls.push({ method: init.method || "GET", path, query: Object.fromEntries(u.searchParams), body });
+    calls.push({ method: init.method || "GET", path, query: Object.fromEntries(u.searchParams), body, headers: init.headers });
     const out = routes(init.method || "GET", path, body, u);
     return { ok: out.status < 400, status: out.status, headers: new Map(), text: async () => (out.data ? JSON.stringify(out.data) : "") };
   };
@@ -30,10 +30,40 @@ const batchOk = (body) => ({ status: 200, data: { responses: body.requests.map((
 
 {
   const { fetchImpl, calls } = makeGraph(() => ({ status: 200, data: { value: [
-    { subject: "Old", receivedDateTime: "2024-01-01T00:00:00Z" }, { subject: "", receivedDateTime: "2025-01-01T00:00:00Z" }] } }));
+    { id: "old-id", subject: "Old", receivedDateTime: "2024-01-01T00:00:00Z" },
+    { id: "new-id", subject: "", receivedDateTime: "2025-01-01T00:00:00Z" }] } }));
   const r = await listSubjects("t", "a@x.com", 100, fetchImpl);
   assert.deepEqual(r.subjects.map((s) => s.subject), ["(no subject)", "Old"]);
+  assert.deepEqual(r.subjects.map((s) => s.id), ["new-id", "old-id"]);
+  assert.match(calls[0].query.$select, /id/);
   assert.match(calls[0].query.$filter, /from\/emailAddress\/address eq 'a@x\.com'/);
+}
+
+{
+  const { fetchImpl, calls } = makeGraph((m, p) => {
+    assert.equal(p, "/me/messages/message-id");
+    return { status: 200, data: {
+      id: "message-id",
+      subject: "Full message",
+      from: { emailAddress: { name: "Sender", address: "sender@example.com" } },
+      toRecipients: [{ emailAddress: { name: "Reader", address: "reader@example.com" } }],
+      ccRecipients: [{ emailAddress: { address: "copy@example.com" } }],
+      receivedDateTime: "2025-01-01T00:00:00Z",
+      body: { contentType: "html", content: "<p>Hello &amp; welcome</p><script>bad()</script>" }
+    } };
+  });
+  const result = await getMessageContent("t", "message-id", fetchImpl);
+  assert.deepEqual(result, {
+    id: "message-id",
+    from: "Sender <sender@example.com>",
+    to: "Reader <reader@example.com>",
+    cc: "copy@example.com",
+    subject: "Full message",
+    date: "2025-01-01T00:00:00Z",
+    body: "Hello & welcome"
+  });
+  assert.equal(calls[0].headers.Prefer, 'outlook.body-content-type="text"');
+  await assert.rejects(() => getMessageContent("t", "", fetchImpl), /message ID/);
 }
 
 {

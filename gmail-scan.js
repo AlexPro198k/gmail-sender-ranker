@@ -1,3 +1,5 @@
+import { htmlToText } from "./mail-content.js";
+
 const API = "https://gmail.googleapis.com/gmail/v1/users/me";
 const CONCURRENCY = 8;
 // Gmail also caps each user at 15,000 units per minute and messages.get costs 5 (3,000 reads/min).
@@ -101,7 +103,7 @@ export async function listSubjects(token, email, limit = 100, fetchImpl = fetch)
       try {
         const data = await call(token, `${API}/messages/${ids[i]}?${p}`, fetchImpl);
         const get = (n) => data.payload?.headers?.find((h) => h.name.toLowerCase() === n)?.value || "";
-        subjects[i] = { subject: get("subject") || "(no subject)", date: get("date") };
+        subjects[i] = { id: ids[i], subject: get("subject") || "(no subject)", date: get("date") };
       } catch (error) {
         if (error.status !== 404) throw error;
       }
@@ -109,4 +111,54 @@ export async function listSubjects(token, email, limit = 100, fetchImpl = fetch)
   }
   await Promise.all(Array.from({ length: CONCURRENCY }, worker));
   return { subjects: subjects.filter(Boolean), total: list.resultSizeEstimate ?? ids.length };
+}
+
+function decodeBase64Url(value, charset) {
+  const base64 = value.replace(/-/g, "+").replace(/_/g, "/").padEnd(Math.ceil(value.length / 4) * 4, "=");
+  const bytes = Uint8Array.from(atob(base64), (character) => character.charCodeAt(0));
+  let decoder;
+  try {
+    decoder = new TextDecoder(charset || "utf-8");
+  } catch (error) {
+    if (!(error instanceof RangeError)) throw error;
+    decoder = new TextDecoder("utf-8");
+  }
+  return decoder.decode(bytes);
+}
+
+function extractBody(payload) {
+  const parts = [];
+  function collect(part) {
+    if (part.body?.data && !part.filename && !part.body.attachmentId) {
+      const contentType = part.headers?.find((header) => header.name.toLowerCase() === "content-type")?.value || "";
+      const charset = contentType.match(/charset\s*=\s*"?([^;"\s]+)/i)?.[1];
+      parts.push({ mimeType: part.mimeType?.toLowerCase(), data: part.body.data, charset });
+    }
+    for (const child of part.parts ?? []) collect(child);
+  }
+  collect(payload);
+
+  const plain = parts.filter((part) => part.mimeType === "text/plain");
+  if (plain.length) return plain.map((part) => decodeBase64Url(part.data, part.charset)).join("\n").trim();
+  const html = parts.find((part) => part.mimeType === "text/html");
+  return html ? htmlToText(decodeBase64Url(html.data, html.charset)) : "";
+}
+
+export async function getMessageContent(token, rawId, fetchImpl = fetch) {
+  const id = String(rawId ?? "").trim();
+  if (!id) throw new Error("A message ID is required.");
+  const params = new URLSearchParams({ format: "full" });
+  const data = await call(token, `${API}/messages/${encodeURIComponent(id)}?${params}`, fetchImpl);
+  const headers = data.payload?.headers ?? [];
+  const get = (name) => headers.find((header) => header.name.toLowerCase() === name)?.value || "";
+  const internalDate = data.internalDate ? new Date(Number(data.internalDate)).toISOString() : "";
+  return {
+    id: data.id || id,
+    from: get("from"),
+    to: get("to"),
+    cc: get("cc"),
+    subject: get("subject") || "(no subject)",
+    date: get("date") || internalDate,
+    body: extractBody(data.payload ?? {})
+  };
 }

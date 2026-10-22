@@ -1,7 +1,7 @@
 import { CLIENT_ID } from "../config.js";
 import { applyRule, emptyFolder, trashInboxOlderThan, getExistingFolder, getDuplicateRules, mergeRules } from "../gmail-rules.js";
 import { buildAutoRuleSuggestions } from "./auto-rules.js";
-import { scanInbox, listSubjects } from "../gmail-scan.js";
+import { scanInbox, listSubjects, getMessageContent } from "../gmail-scan.js";
 import * as msMail from "../ms-mail.js";
 import { cachedMsToken, finishMsSignIn, msConfigured, msSignOut, startMsSignIn } from "../ms-auth.js";
 import { cachedYahooToken, finishYahooSignIn, yahooConfigured, yahooSignOut, startYahooSignIn } from "../yahoo-auth.js";
@@ -38,13 +38,14 @@ let tokenExpires = 0;
 let tokenClient = null;
 let senders = [];
 let provider = localStorage.getItem("provider") || "google";
-const googleApi = { scanInbox, listSubjects, applyRule, emptyFolder, trashInboxOlderThan, getExistingFolder, getDuplicateRules, mergeRules };
+const googleApi = { scanInbox, listSubjects, getMessageContent, applyRule, emptyFolder, trashInboxOlderThan, getExistingFolder, getDuplicateRules, mergeRules };
 
 const YAHOO_NOT_AVAILABLE = "Mail management isn't available for Yahoo Mail — Yahoo doesn't provide a public REST API for third-party apps.";
 
 const yahooApi = {
   scanInbox: () => Promise.reject(new Error(YAHOO_NOT_AVAILABLE)),
   listSubjects: () => Promise.reject(new Error(YAHOO_NOT_AVAILABLE)),
+  getMessageContent: () => Promise.reject(new Error(YAHOO_NOT_AVAILABLE)),
   applyRule: () => Promise.reject(new Error(YAHOO_NOT_AVAILABLE)),
   emptyFolder: () => Promise.reject(new Error(YAHOO_NOT_AVAILABLE)),
   trashInboxOlderThan: () => Promise.reject(new Error(YAHOO_NOT_AVAILABLE)),
@@ -158,22 +159,91 @@ async function showPreview(sender) {
   close.addEventListener("click", dismiss);
   backdrop.addEventListener("click", (event) => { if (event.target === backdrop) dismiss(); });
 
-  try {
-    const { subjects } = await withToken((t) => api().listSubjects(t, sender.email));
-    if (!subjects.length) { body.textContent = "No Inbox emails found for this sender."; return; }
+  function renderSubjects(subjects, focusId) {
+    title.textContent = `${sender.name} <${sender.email}>`;
+    body.replaceChildren();
     const list = document.createElement("ol");
+    list.className = "preview-message-list";
     for (const item of subjects) {
       const li = document.createElement("li");
-      li.textContent = item.subject;
-      if (item.date) { const d = document.createElement("small"); d.textContent = item.date; li.append(d); }
+      const select = document.createElement("button");
+      select.type = "button";
+      select.className = "preview-message-select";
+      select.textContent = item.subject;
+      select.disabled = !item.id;
+      select.setAttribute("aria-label", `Read message: ${item.subject}`);
+      select.addEventListener("click", () => openMessage(item, subjects));
+      if (item.date) {
+        const date = document.createElement("small");
+        date.textContent = item.date;
+        li.append(select, date);
+      } else {
+        li.append(select);
+      }
       list.append(li);
+      if (item.id === focusId) select.dataset.focusTarget = "true";
     }
-    body.replaceChildren(list);
+    body.append(list);
     if (sender.count > subjects.length) {
       const more = document.createElement("small");
       more.textContent = `Showing the latest ${subjects.length} of ${sender.count}.`;
       body.append(more);
     }
+    body.querySelector("[data-focus-target]")?.focus();
+  }
+
+  function renderMessage(message, subjects, selected, error) {
+    title.textContent = error ? selected.subject : message.subject;
+    body.replaceChildren();
+    const back = document.createElement("button");
+    back.type = "button";
+    back.className = "preview-message-back";
+    back.textContent = "Back to messages";
+    back.addEventListener("click", () => renderSubjects(subjects, selected.id));
+    body.append(back);
+    if (error) {
+      const errorMessage = document.createElement("p");
+      errorMessage.className = "preview-message-error";
+      errorMessage.textContent = error;
+      body.append(errorMessage);
+      return;
+    }
+
+    const detail = document.createElement("article");
+    detail.className = "preview-message-detail";
+    const metadata = document.createElement("dl");
+    for (const [label, value] of [["From", message.from], ["To", message.to], ["Cc", message.cc], ["Date", message.date]]) {
+      if (!value) continue;
+      const row = document.createElement("div");
+      row.className = "preview-message-meta-row";
+      const name = document.createElement("dt");
+      name.textContent = label;
+      const content = document.createElement("dd");
+      content.textContent = value;
+      row.append(name, content);
+      metadata.append(row);
+    }
+    const content = document.createElement("pre");
+    content.className = "preview-message-body";
+    content.textContent = message.body || "No readable message body.";
+    detail.append(metadata, content);
+    body.append(detail);
+  }
+
+  async function openMessage(item, subjects) {
+    body.textContent = "Loading message...";
+    try {
+      const message = await withToken((t) => api().getMessageContent(t, item.id));
+      if (backdrop.isConnected) renderMessage(message, subjects, item);
+    } catch (error) {
+      if (backdrop.isConnected) renderMessage(null, subjects, item, error.message);
+    }
+  }
+
+  try {
+    const { subjects } = await withToken((t) => api().listSubjects(t, sender.email));
+    if (!subjects.length) { body.textContent = "No Inbox emails found for this sender."; return; }
+    renderSubjects(subjects);
   } catch (error) {
     body.textContent = error.message;
   }

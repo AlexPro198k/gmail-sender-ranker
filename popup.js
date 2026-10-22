@@ -139,24 +139,94 @@ async function showPreview(sender) {
   backdrop.addEventListener("click", (event) => { if (event.target === backdrop) dismiss(); });
   close.focus();
 
-  try {
-    const response = await chrome.runtime.sendMessage({ type: "LIST_SUBJECTS", email: sender.email });
-    if (!response?.ok) throw new Error(response?.error || "No response from the extension. Sign in first.");
-    const { subjects } = response.result;
-    if (!subjects.length) { body.textContent = "No Inbox emails found for this sender."; return; }
+  function renderSubjects(subjects, focusId) {
+    title.textContent = `${sender.name} <${sender.email}>`;
+    body.replaceChildren();
     const list = document.createElement("ol");
+    list.className = "preview-message-list";
     for (const item of subjects) {
       const li = document.createElement("li");
-      li.textContent = item.subject;
-      if (item.date) { const d = document.createElement("small"); d.textContent = item.date; li.append(d); }
+      const select = document.createElement("button");
+      select.type = "button";
+      select.className = "preview-message-select";
+      select.textContent = item.subject;
+      select.disabled = !item.id;
+      select.setAttribute("aria-label", `Read message: ${item.subject}`);
+      select.addEventListener("click", () => openMessage(item, subjects));
+      if (item.date) {
+        const date = document.createElement("small");
+        date.textContent = item.date;
+        li.append(select, date);
+      } else {
+        li.append(select);
+      }
       list.append(li);
+      if (item.id === focusId) select.dataset.focusTarget = "true";
     }
-    body.replaceChildren(list);
+    body.append(list);
     if (sender.count > subjects.length) {
       const more = document.createElement("small");
       more.textContent = `Showing the latest ${subjects.length} of ${sender.count}.`;
       body.append(more);
     }
+    body.querySelector("[data-focus-target]")?.focus();
+  }
+
+  function renderMessage(message, subjects, selected, error) {
+    title.textContent = error ? selected.subject : message.subject;
+    body.replaceChildren();
+    const back = document.createElement("button");
+    back.type = "button";
+    back.className = "preview-message-back";
+    back.textContent = "Back to messages";
+    back.addEventListener("click", () => renderSubjects(subjects, selected.id));
+    body.append(back);
+    if (error) {
+      const errorMessage = document.createElement("p");
+      errorMessage.className = "preview-message-error";
+      errorMessage.textContent = error;
+      body.append(errorMessage);
+      return;
+    }
+
+    const detail = document.createElement("article");
+    detail.className = "preview-message-detail";
+    const metadata = document.createElement("dl");
+    for (const [label, value] of [["From", message.from], ["To", message.to], ["Cc", message.cc], ["Date", message.date]]) {
+      if (!value) continue;
+      const row = document.createElement("div");
+      row.className = "preview-message-meta-row";
+      const name = document.createElement("dt");
+      name.textContent = label;
+      const content = document.createElement("dd");
+      content.textContent = value;
+      row.append(name, content);
+      metadata.append(row);
+    }
+    const content = document.createElement("pre");
+    content.className = "preview-message-body";
+    content.textContent = message.body || "No readable message body.";
+    detail.append(metadata, content);
+    body.append(detail);
+  }
+
+  async function openMessage(item, subjects) {
+    body.textContent = "Loading message...";
+    try {
+      const response = await chrome.runtime.sendMessage({ type: "GET_MESSAGE_CONTENT", id: item.id });
+      if (!response?.ok) throw new Error(response?.error || "Could not load this message.");
+      if (backdrop.isConnected) renderMessage(response.result, subjects, item);
+    } catch (error) {
+      if (backdrop.isConnected) renderMessage(null, subjects, item, error instanceof Error ? error.message : String(error));
+    }
+  }
+
+  try {
+    const response = await chrome.runtime.sendMessage({ type: "LIST_SUBJECTS", email: sender.email });
+    if (!response?.ok) throw new Error(response?.error || "No response from the extension. Sign in first.");
+    const { subjects } = response.result;
+    if (!subjects.length) { body.textContent = "No Inbox emails found for this sender."; return; }
+    renderSubjects(subjects);
   } catch (error) {
     body.textContent = error instanceof Error ? error.message : String(error);
   }

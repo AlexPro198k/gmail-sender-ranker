@@ -1,5 +1,5 @@
 import { applyRule, emptyFolder, trashInboxOlderThan } from "./gmail-rules.js";
-import { scanInbox, listSubjects } from "./gmail-scan.js";
+import { scanInbox, listSubjects, getMessageContent } from "./gmail-scan.js";
 import { clearToken, getAuthState, getToken, signOut } from "./auth.js";
 import { YAHOO_CLIENT_ID, MS_CLIENT_ID } from "./config.js";
 
@@ -104,6 +104,7 @@ const handlers = {
       )
     ),
   LIST_SUBJECTS: (message) => withToken((token) => listSubjects(token, message.email)),
+  GET_MESSAGE_CONTENT: (message) => withToken((token) => getMessageContent(token, message.id)),
   APPLY_SENDER_RULE: (message) =>
     withToken((token) =>
       applyRule(token, message.action, message.email, fetch, { folderName: message.folderName })
